@@ -2,7 +2,8 @@
 
 import { createContext, useContext, useState, ReactNode } from "react";
 
-export type Language = "zh" | "en";
+const SUPPORTED_LANGUAGES = ["zh", "en"] as const;
+export type Language = (typeof SUPPORTED_LANGUAGES)[number];
 
 interface Translations {
   greeting: string;
@@ -165,18 +166,23 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<Language>(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("language") as Language;
-      if (saved && ["zh", "en", "ja", "ko"].includes(saved)) {
-        return saved;
+      const saved = localStorage.getItem("language");
+      if (saved && (SUPPORTED_LANGUAGES as readonly string[]).includes(saved)) {
+        return saved as Language;
+      }
+      // 若存的是舊的 ja/ko，回退成 zh，避免 translations 取不到導致 t 炸掉
+      if (saved) {
+        localStorage.setItem("language", "zh");
       }
     }
     return "zh";
   });
 
   const handleSetLanguage = (lang: Language) => {
-    setLanguage(lang);
+    const safeLang = SUPPORTED_LANGUAGES.includes(lang) ? lang : "zh";
+    setLanguage(safeLang);
     if (typeof window !== "undefined") {
-      localStorage.setItem("language", lang);
+      localStorage.setItem("language", safeLang);
     }
   };
 
@@ -185,7 +191,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       value={{
         language,
         setLanguage: handleSetLanguage,
-        t: translations[language],
+        t: translations[language] ?? translations["zh"],
       }}
     >
       {children}

@@ -56,6 +56,10 @@ export default function CompleteMealModal({
 }: CompleteMealModalProps) {
   const { language, t } = useLanguage();
   const tr = (zh: string, en: string) => (language === "en" ? en : zh);
+  const safeLabels = t?.labels || {
+    consumption: tr("寶寶吃了多少？", "How much did baby eat?"),
+    actual_intake: tr("實際攝取", "Intake"),
+  };
   const [title, setTitle] = useState(recipeTitle);
   const [selectedDate, setSelectedDate] = useState(
     defaultDate ? format(defaultDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')
@@ -508,7 +512,7 @@ export default function CompleteMealModal({
         {/* 完食比例 */}
         <div className="mb-4">
           <label className="block text-base font-semibold text-ink-dark mb-2 tracking-wide">
-            {t.labels.consumption}
+            {safeLabels.consumption}
           </label>
           <div className="space-y-3">
             {/* 快速選擇按鈕 */}
@@ -557,7 +561,7 @@ export default function CompleteMealModal({
             {/* 顯示調整後的營養資訊 */}
             {!isManual && nutrition && typeof nutrition === 'object' && nutrition !== null && 'calories' in nutrition && (
               <div className="mt-3 p-3 rounded-xl border-2 border-dashed border-deep-teal/30 bg-deep-teal/5">
-                <div className="text-sm font-semibold text-ink-dark mb-2">{t.labels.actual_intake}:</div>
+                <div className="text-sm font-semibold text-ink-dark mb-2">{safeLabels.actual_intake}:</div>
                 <div className="text-xs text-ink-dark/80 space-y-1">
                   <div>
                     🔥 {(nutrition as NutritionInfo).calories} kcal ➔ {getAdjustedNutrition()?.calories || 0} kcal

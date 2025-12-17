@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Globe, Keyboard, Mic, Camera, ChefHat, Loader2, CheckCircle2, CheckCircle, Youtube, Search, Calendar, Heart, Clock, Settings as SettingsIcon } from "lucide-react";
 import CollectionModal from "./components/CollectionModal";
@@ -9,6 +9,7 @@ import HeroSection from "./components/HeroSection";
 import LanguageSwitcher from "./components/LanguageSwitcher";
 import WelcomeModal from "./components/WelcomeModal";
 import { useLanguage } from "./context/LanguageContext";
+import { supabase } from "../lib/supabaseClient";
 
 type Mode = "strict" | "creative" | "shopping";
 
@@ -19,6 +20,7 @@ interface UserProfile {
   dietPreference?: string;
   cookingTools?: string[];
   guest?: boolean;
+  email?: string;
 }
 
 export default function Home() {
@@ -26,6 +28,9 @@ export default function Home() {
   const { language, t } = useLanguage();
   const tr = (zh: string, en: string) => (language === "en" ? en : zh);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userEmail, setUserEmail] = useState("");
+  const [babies, setBabies] = useState<Array<{ id: number; name: string; months_old: number | null }>>([]);
+  const [selectedBabyIds, setSelectedBabyIds] = useState<number[]>([]);
   const [selectedMode, setSelectedMode] = useState<Mode>("strict");
   const [inputText, setInputText] = useState("");
   const [selectedTool, setSelectedTool] = useState("any");
@@ -82,23 +87,132 @@ export default function Home() {
     }
   };
 
+  const getMonthsFromBirthday = (birthday?: string | null) => {
+    if (!birthday) return null;
+    const birth = new Date(birthday);
+    const today = new Date();
+    let months = (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth());
+    if (today.getDate() < birth.getDate()) months -= 1;
+    return Math.max(months, 0);
+  };
+
+  const selectedBabies = useMemo(
+    () => babies.filter((b) => selectedBabyIds.includes(b.id)),
+    [babies, selectedBabyIds]
+  );
+  const selectedBabyCount = Math.max(selectedBabies.length, 1);
+  const activeBabyMonths = useMemo(() => {
+    const monthsList = selectedBabies
+      .map((b) => (typeof b.months_old === "number" ? b.months_old : null))
+      .filter((v) => v !== null) as number[];
+    if (monthsList.length > 0) return Math.min(...monthsList);
+    const fallback = getMonthsFromBirthday(userProfile?.birthday || null);
+    return fallback ?? undefined;
+  }, [selectedBabies, userProfile?.birthday]);
+
+  const loadBabiesFromSupabase = async (email: string) => {
+    if (!supabase || !email) return;
+    const { data, error } = await supabase
+      .from("babies")
+      .select("*")
+      .eq("user_email", email)
+      .order("id", { ascending: true });
+    if (!error && data) {
+      setBabies(data);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("babies", JSON.stringify(data));
+        if (!localStorage.getItem("activeBabyIds") && data.length > 0) {
+          localStorage.setItem("activeBabyIds", JSON.stringify([data[0].id]));
+        }
+      }
+      if (selectedBabyIds.length === 0 && data.length > 0) {
+        setSelectedBabyIds([data[0].id]);
+      }
+    }
+  };
+
+  const scaleAmount = (amount: string) => {
+    const match = amount.match(/([\d.]+)/);
+    if (!match) return selectedBabyCount > 1 ? `${amount} x${selectedBabyCount}` : amount;
+    const value = parseFloat(match[1]) * selectedBabyCount;
+    const unit = amount.slice(match.index! + match[1].length).trim();
+    const numStr = Number.isInteger(value) ? value.toString() : value.toFixed(1);
+    return `${numStr}${unit ? ` ${unit}` : ""}`;
+  };
+
+  const formatIngredientEntry = (ing: any) => {
+    if (typeof ing === "string") {
+      return selectedBabyCount > 1 ? `${ing} x${selectedBabyCount}` : ing;
+    }
+    if (!ing) return "";
+    const amt = ing.amount ? scaleAmount(ing.amount) : "";
+    return `${ing.name || ""}${amt ? ` ${amt}` : ""}`.trim();
+  };
+
+  const toggleBaby = (id: number, name?: string) => {
+    setSelectedBabyIds((prev) => {
+      const exists = prev.includes(id);
+      const next = exists ? prev.filter((b) => b !== id) : [...prev, id];
+      const final = next.length > 0 ? next : [id];
+      if (!exists) {
+        alert(`現在是 ${name || "寶寶"} 的用餐時間囉！`);
+      }
+      if (typeof window !== "undefined") {
+        localStorage.setItem("activeBabyIds", JSON.stringify(final));
+      }
+      return final;
+    });
+  };
+
   // 路由保護：檢查 userProfile
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedProfile = localStorage.getItem('userProfile');
-      if (!storedProfile) {
+      const storedEmail = localStorage.getItem('userEmail');
+      const storedBabies = localStorage.getItem('babies');
+
+      if (!storedProfile && !storedEmail) {
         router.push('/onboarding');
-      } else {
+        return;
+      }
+
+      if (storedProfile) {
         try {
           const profile = JSON.parse(storedProfile);
           setUserProfile(profile);
+          if (profile.email) setUserEmail(profile.email);
         } catch (error) {
           console.error('解析 userProfile 失敗:', error);
-          router.push('/onboarding');
+        }
+      }
+      if (storedEmail) {
+        setUserEmail(storedEmail);
+      }
+      if (storedBabies) {
+        try {
+          const parsed = JSON.parse(storedBabies);
+          setBabies(parsed);
+          if (parsed.length > 0 && selectedBabyIds.length === 0) {
+            const storedActive = localStorage.getItem("activeBabyIds");
+            if (storedActive) {
+              const ids = JSON.parse(storedActive);
+              setSelectedBabyIds(ids);
+            } else {
+              setSelectedBabyIds([parsed[0].id]);
+            }
+          }
+        } catch (e) {
+          console.error("解析 babies 失敗", e);
         }
       }
     }
   }, [router]);
+
+  useEffect(() => {
+    if (userEmail) {
+      loadBabiesFromSupabase(userEmail);
+    }
+  }, [userEmail]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -211,13 +325,7 @@ export default function Home() {
           mode: selectedMode,
           tool: selectedTool,
           language: language,
-          age: userProfile?.birthday ? (() => {
-            const birth = new Date(userProfile.birthday as string);
-            const today = new Date();
-            let months = (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth());
-            if (today.getDate() < birth.getDate()) months -= 1;
-            return Math.max(months, 0);
-          })() : undefined,
+          age: activeBabyMonths,
         }),
       });
 
@@ -265,9 +373,7 @@ export default function Home() {
         // 轉換為舊格式以保持相容性（使用第一道食譜）
         const firstRecipe = data.recipes[0];
         const ingredientsArray = Array.isArray(firstRecipe.ingredients) 
-          ? firstRecipe.ingredients.map((ing: any) => 
-              typeof ing === 'string' ? ing : `${ing.name} ${ing.amount}`
-            )
+          ? firstRecipe.ingredients.map((ing: any) => formatIngredientEntry(ing))
           : [];
         
         setRecipeResult({
@@ -459,6 +565,48 @@ export default function Home() {
           </div>
         )}
 
+        {/* 多寶寶切換 */}
+        {babies.length > 0 && (
+          <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pb-4">
+            <div className="rounded-2xl border-2 border-dashed border-moss-green/30 p-4 bg-white shadow-sm shadow-moss-green/10"
+              style={{ backgroundImage: `url("${cardTexture}")`, backgroundSize: 'cover' }}>
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div className="text-base font-semibold text-ink-dark">
+                  {tr("選擇用餐的寶寶", "Pick babies for this meal")}
+                </div>
+                <button
+                  onClick={() => router.push("/settings")}
+                  className="text-sm text-deep-teal underline"
+                >
+                  {tr("新增寶寶", "Add baby")}
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {babies.map((b) => {
+                  const active = selectedBabyIds.includes(b.id);
+                  return (
+                    <button
+                      key={b.id}
+                      onClick={() => toggleBaby(b.id, b.name)}
+                      className={`px-3 py-2 rounded-xl border-2 text-sm font-semibold transition-all ${
+                        active
+                          ? "bg-deep-teal text-white border-deep-teal"
+                          : "bg-white text-ink-dark border-dashed border-moss-green/30 hover:border-deep-teal"
+                      }`}
+                      style={!active ? { backgroundImage: `url("${cardTexture}")`, backgroundSize: 'cover' } : {}}
+                    >
+                      {b.name} {b.months_old ? `(${b.months_old}m)` : ""}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-ink-light mt-2">
+                {tr("選中寶寶數量會放大份量（食材克數乘上選中數）", "Selected babies will scale ingredients (x count)")}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 模式選擇 Tabs - 卡片紙風格 */}
         <div 
@@ -637,9 +785,7 @@ export default function Home() {
                         setSelectedRecipeIndex(idx);
                         const selectedRecipe = recipesData.recipes[idx];
                         const ingredientsArray = Array.isArray(selectedRecipe.ingredients)
-                          ? selectedRecipe.ingredients.map((ing: any) =>
-                              typeof ing === 'string' ? ing : `${ing.name} ${ing.amount}`
-                            )
+                          ? selectedRecipe.ingredients.map((ing: any) => formatIngredientEntry(ing))
                           : [];
                         setRecipeResult({
                           name: selectedRecipe.title,

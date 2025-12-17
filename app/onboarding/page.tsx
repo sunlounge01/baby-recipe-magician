@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChefHat, ArrowRight, Check } from "lucide-react";
+import { supabase } from "../../lib/supabaseClient";
 
 interface FormData {
+  email: string;
   nickname: string;
   birthday: string;
   allergies: string[];
@@ -40,16 +42,30 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<FormData>({
+    email: "",
     nickname: "",
     birthday: "",
     allergies: [],
     dietPreference: "omnivore",
     cookingTools: [],
   });
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const storedEmail = localStorage.getItem("userEmail") || "";
+    if (storedEmail) {
+      setFormData((prev) => ({ ...prev, email: storedEmail }));
+    }
+  }, []);
 
   const progress = (currentStep / 4) * 100;
 
   const handleNext = () => {
+    if (currentStep === 2 && (!formData.email || !formData.nickname || !formData.birthday)) {
+      alert("請先填寫 Email、寶寶暱稱與生日");
+      return;
+    }
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
     }
@@ -73,11 +89,77 @@ export default function OnboardingPage() {
     setFormData({ ...formData, cookingTools: newTools });
   };
 
-  const handleComplete = () => {
-    // 存入 localStorage
-    localStorage.setItem('userProfile', JSON.stringify(formData));
-    // 跳轉回首頁
-    router.push('/');
+  const getMonthsOld = (birthday: string) => {
+    if (!birthday) return null;
+    const birth = new Date(birthday);
+    const today = new Date();
+    let months = (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth());
+    if (today.getDate() < birth.getDate()) months -= 1;
+    return Math.max(months, 0);
+  };
+
+  const handleComplete = async () => {
+    if (!formData.email || !formData.nickname || !formData.birthday) {
+      alert("請填寫 Email、寶寶暱稱與生日");
+      return;
+    }
+    setIsSaving(true);
+    const monthsOld = getMonthsOld(formData.birthday);
+
+    try {
+      // 同步到 Supabase
+      if (supabase) {
+        await supabase.from("profiles").upsert({ email: formData.email });
+        const { data: babyRows, error: babyErr } = await supabase
+          .from("babies")
+          .insert({
+            user_email: formData.email,
+            name: formData.nickname,
+            months_old: monthsOld,
+          })
+          .select();
+        if (babyErr) throw babyErr;
+
+        const savedBaby = babyRows?.[0];
+        if (typeof window !== "undefined") {
+          localStorage.setItem("userEmail", formData.email);
+          localStorage.setItem(
+            "babies",
+            JSON.stringify([savedBaby || { id: Date.now(), name: formData.nickname, months_old: monthsOld }])
+          );
+          localStorage.setItem("activeBabyIds", JSON.stringify([savedBaby?.id || 0]));
+        }
+      } else if (typeof window !== "undefined") {
+        // 沒有 supabase client 也先寫本地
+        localStorage.setItem("userEmail", formData.email);
+        localStorage.setItem(
+          "babies",
+          JSON.stringify([{ id: Date.now(), name: formData.nickname, months_old: monthsOld }])
+        );
+        localStorage.setItem("activeBabyIds", JSON.stringify([0]));
+      }
+
+      // 備份原本 userProfile 以相容舊流程
+      localStorage.setItem(
+        "userProfile",
+        JSON.stringify({
+          nickname: formData.nickname,
+          birthday: formData.birthday,
+          allergies: formData.allergies,
+          dietPreference: formData.dietPreference,
+          cookingTools: formData.cookingTools,
+          email: formData.email,
+        })
+      );
+
+      alert("你太棒了！魔法師已經記住這一切了！");
+      router.push('/');
+    } catch (error) {
+      console.error("Onboarding 儲存失敗:", error);
+      alert("哎呀，魔法失手，請稍後再試！");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Screen 1: 歡迎畫面
@@ -136,6 +218,22 @@ export default function OnboardingPage() {
       <div className="flex-1 space-y-6">
         <div>
           <label className="block text-lg font-semibold text-[#5C4B41] mb-3 tracking-wide">
+            Email
+          </label>
+          <input
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            placeholder="you@example.com"
+            className="w-full px-5 py-4 rounded-2xl border-2 border-dashed border-stone-400/50 focus:border-[#7A9471] outline-none text-[#5C4B41] transition-all tracking-wide font-sans"
+            style={{
+              backgroundImage: `url("${cardTexture}")`,
+              backgroundSize: 'cover',
+            }}
+          />
+        </div>
+        <div>
+          <label className="block text-lg font-semibold text-[#5C4B41] mb-3 tracking-wide">
             寶寶暱稱
           </label>
           <input
@@ -170,7 +268,7 @@ export default function OnboardingPage() {
 
       <button
         onClick={handleNext}
-        disabled={!formData.nickname || !formData.birthday}
+        disabled={!formData.email || !formData.nickname || !formData.birthday}
         className="w-full py-4 bg-[#7A9471] text-white rounded-2xl font-bold text-lg border-2 border-[#5A6B4F] hover:scale-105 active:scale-100 transition-transform disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none tracking-wide shadow-lg shadow-stone-300/50 flex items-center justify-center gap-2 mt-8"
       >
         <span>下一步</span>

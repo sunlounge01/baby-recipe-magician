@@ -77,7 +77,6 @@ interface Translations {
 
 const translations: Record<Language, Translations> = {
   zh: {
-    hero: { title: "幼兒食譜魔法師 ✨", subtitle: "Toddler Recipe Magician" },
     greeting: "Hi, [Name] 今天想吃什麼呢？",
     tabs: { chinese: "中式", western: "西式", japanese: "日式" },
     buttons: { save: "收藏食譜", cooked: "我煮了這個", youtube: "影片教學", google: "Google 搜尋", regenerate: "🔄 都不喜歡，再換一組", settings: "設定" },
@@ -116,7 +115,6 @@ const translations: Record<Language, Translations> = {
     welcome: { title: "歡迎來到 幼兒食譜魔法師 ✨", text: "輸入 Email，獲得更多育兒營養資訊！", skip: "先略過，直接開始", start: "開始使用" }
   },
   en: {
-    hero: { title: "Toddler Recipe Magician ✨", subtitle: "Making baby food is as simple as magic" },
     greeting: "Hi, [Name], what would you like to eat today?",
     tabs: { chinese: "Chinese", western: "Western", japanese: "Japanese" },
     buttons: { save: "Save", cooked: "Cooked", youtube: "Watch Video", google: "Search", regenerate: "🔄 Regenerate", settings: "Settings" },

@@ -5,6 +5,7 @@ import { X, Plus, Heart, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { zhTW } from "date-fns/locale";
 import CompleteMealModal from "./CompleteMealModal";
+import { useLanguage } from "../context/LanguageContext";
 
 interface NutritionInfo {
   calories: number;
@@ -44,19 +45,20 @@ interface DayViewModalProps {
 // 卡片材質背景
 const cardTexture = "data:image/svg+xml,%3Csvg width='200' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='paper'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.04' numOctaves='3'/%3E%3CfeColorMatrix values='0 0 0 0 0.95 0 0 0 0 0.95 0 0 0 0 0.95 0 0 0 0.15 0'/%3E%3C/filter%3E%3Crect width='200' height='200' fill='%23FFFFFF'/%3E%3Crect width='200' height='200' filter='url(%23paper)'/%3E%3C/svg%3E";
 
-const mealTypeConfig = {
-  breakfast: { label: "早餐", icon: "🥞", order: 1 },
-  lunch: { label: "午餐", icon: "🍱", order: 2 },
-  snack: { label: "下午茶", icon: "🍪", order: 3 },
-  dinner: { label: "晚餐", icon: "🍲", order: 4 },
-};
-
 export default function DayViewModal({
   isOpen,
   onClose,
   date,
   onRefresh,
 }: DayViewModalProps) {
+  const { language, t } = useLanguage();
+  const tr = (zh: string, en: string) => (language === "en" ? en : zh);
+  const mealTypeConfig = {
+    breakfast: { label: t.meal_types.breakfast, icon: "🥞", order: 1 },
+    lunch: { label: t.meal_types.lunch, icon: "🍱", order: 2 },
+    snack: { label: t.meal_types.snack, icon: "🍪", order: 3 },
+    dinner: { label: t.meal_types.dinner, icon: "🍲", order: 4 },
+  };
   const [logs, setLogs] = useState<EatingLog[]>([]);
   const [isCompleteMealModalOpen, setIsCompleteMealModalOpen] = useState(false);
 
@@ -77,7 +79,7 @@ export default function DayViewModal({
           });
           setLogs(dayLogs);
         } catch (error) {
-          console.error('解析 eating_logs 失敗:', error);
+          console.error(tr('解析 eating_logs 失敗:', 'Failed to parse eating_logs:'), error);
           setLogs([]);
         }
       } else {
@@ -101,7 +103,7 @@ export default function DayViewModal({
         });
         setLogs(dayLogs);
       } catch (error) {
-        console.error('解析 eating_logs 失敗:', error);
+        console.error(tr('解析 eating_logs 失敗:', 'Failed to parse eating_logs:'), error);
         setLogs([]);
       }
     }
@@ -130,7 +132,9 @@ export default function DayViewModal({
 
           {/* 標題 */}
           <h2 className="text-2xl font-bold text-ink-dark mb-6 tracking-wide font-sans">
-            {format(date, 'M月d日', { locale: zhTW })}
+            {language === "en"
+              ? format(date, 'MMM d')
+              : format(date, 'M月d日', { locale: zhTW })}
           </h2>
 
           {/* 紀錄清單 */}
@@ -161,7 +165,7 @@ export default function DayViewModal({
                           {/* 刪除按鈕 */}
                           <button
                             onClick={() => {
-                              if (confirm(`確定要刪除「${log.title}」的紀錄嗎？`)) {
+                              if (confirm(tr(`確定要刪除「${log.title}」的紀錄嗎？`, `Delete "${log.title}"?`))) {
                                 const storedLogs = localStorage.getItem('eating_logs');
                                 if (storedLogs) {
                                   try {
@@ -170,8 +174,8 @@ export default function DayViewModal({
                                     localStorage.setItem('eating_logs', JSON.stringify(filteredLogs));
                                     handleRefresh();
                                   } catch (error) {
-                                    console.error('刪除失敗:', error);
-                                    alert('刪除失敗，請重試');
+                                    console.error(tr('刪除失敗:', 'Delete failed:'), error);
+                                    alert(tr('刪除失敗，請重試', 'Delete failed, please try again'));
                                   }
                                 }
                               }
@@ -188,7 +192,7 @@ export default function DayViewModal({
                           <div className="text-xs text-ink-dark/60 mb-2 font-sans">
                             🔥 {log.nutrition.calories} kcal
                             {log.nutrition.macros?.protein && (
-                              <> | 🥚 {log.nutrition.macros.protein} 蛋白質</>
+                              <> | 🥚 {log.nutrition.macros.protein} {t.nutrients.protein}</>
                             )}
                           </div>
                         )}
@@ -249,7 +253,7 @@ export default function DayViewModal({
           ) : (
             <div className="text-center py-8 mb-6">
               <div className="text-4xl mb-4">📅</div>
-              <p className="text-ink-dark font-sans">這一天還沒有任何紀錄</p>
+              <p className="text-ink-dark font-sans">{tr("這一天還沒有任何紀錄", "No logs for this day yet")}</p>
             </div>
           )}
 
@@ -259,7 +263,7 @@ export default function DayViewModal({
             className="w-full py-4 bg-deep-teal hover:bg-moss-green text-white rounded-2xl font-bold text-lg border-2 border-moss-green hover:scale-105 active:scale-100 transition-transform shadow-lg shadow-moss-green/20 flex items-center justify-center gap-2 tracking-wide"
           >
             <Plus className="w-5 h-5" />
-            <span>➕ 手動補登</span>
+            <span>{t.modal.manual_title}</span>
           </button>
         </div>
       </div>

@@ -1,20 +1,24 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { email } = body;
-
+    const { email } = await request.json();
     if (!email || typeof email !== "string") {
-      return NextResponse.json({ error: "invalid email" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "invalid email" }, { status: 400 });
     }
 
-    console.log("New Subscriber:", email);
+    const response = await fetch("https://formspree.io/f/mjknnvro", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
 
-    return NextResponse.json({ success: true });
+    if (response.ok) {
+      return NextResponse.json({ success: true });
+    }
+    return NextResponse.json({ success: false }, { status: 500 });
   } catch (error) {
-    console.error("Subscribe error:", error);
-    return NextResponse.json({ success: false, error: "internal error" }, { status: 500 });
+    return NextResponse.json({ success: false, error }, { status: 500 });
   }
 }
 

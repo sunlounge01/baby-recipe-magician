@@ -37,15 +37,16 @@ interface AnalyzeMealResponse {
 // ============================================
 // Mock Data 生成函數
 // ============================================
-function getMockNutritionData(mealName: string): NutritionInfo {
+function getMockNutritionData(mealName: string, language: "zh" | "en"): NutritionInfo {
+  const tr = (zh: string, en: string) => (language === "en" ? en : zh);
   // 根據菜名簡單判斷，回傳假資料
   const name = mealName.toLowerCase();
   
   // 預設值
   let mockData: NutritionInfo = {
     calories: 300,
-    tags: ["營養均衡"],
-    benefit: "這是一道營養均衡的餐點。",
+    tags: [tr("營養均衡", "Balanced")],
+    benefit: tr("這是一道營養均衡的餐點。", "A balanced meal for demo."),
     macros: {
       protein: "15g",
       carbs: "40g",
@@ -62,8 +63,8 @@ function getMockNutritionData(mealName: string): NutritionInfo {
   if (name.includes("粥") || name.includes("飯")) {
     mockData = {
       calories: 250,
-      tags: ["碳水化合物", "易消化"],
-      benefit: "富含碳水化合物，提供寶寶成長所需的能量。",
+      tags: [tr("碳水化合物", "Carbs"), tr("易消化", "Easy to digest")],
+      benefit: tr("富含碳水化合物，提供寶寶成長所需的能量。", "Rich in carbs to fuel growth."),
       macros: {
         protein: "8g",
         carbs: "45g",
@@ -78,8 +79,8 @@ function getMockNutritionData(mealName: string): NutritionInfo {
   } else if (name.includes("蛋") || name.includes("雞蛋")) {
     mockData = {
       calories: 180,
-      tags: ["優質蛋白", "高營養"],
-      benefit: "富含優質蛋白質，有助於寶寶肌肉發展。",
+      tags: [tr("優質蛋白", "High-quality protein"), tr("高營養", "Nutrient-dense")],
+      benefit: tr("富含優質蛋白質，有助於寶寶肌肉發展。", "Rich in protein to support muscles."),
       macros: {
         protein: "12g",
         carbs: "2g",
@@ -94,8 +95,8 @@ function getMockNutritionData(mealName: string): NutritionInfo {
   } else if (name.includes("肉") || name.includes("雞") || name.includes("魚")) {
     mockData = {
       calories: 350,
-      tags: ["高蛋白", "鐵質"],
-      benefit: "富含蛋白質和鐵質，有助於寶寶成長發育。",
+      tags: [tr("高蛋白", "High protein"), tr("鐵質", "Iron-rich")],
+      benefit: tr("富含蛋白質和鐵質，有助於寶寶成長發育。", "High protein and iron for growth."),
       macros: {
         protein: "25g",
         carbs: "5g",
@@ -110,8 +111,8 @@ function getMockNutritionData(mealName: string): NutritionInfo {
   } else if (name.includes("菜") || name.includes("蔬菜")) {
     mockData = {
       calories: 80,
-      tags: ["維生素", "纖維質"],
-      benefit: "富含維生素和纖維質，有助於消化和免疫力。",
+      tags: [tr("維生素", "Vitamins"), tr("纖維質", "Fiber")],
+      benefit: tr("富含維生素和纖維質，有助於消化和免疫力。", "Rich in vitamins and fiber for digestion and immunity."),
       macros: {
         protein: "3g",
         carbs: "15g",
@@ -133,23 +134,23 @@ function getMockNutritionData(mealName: string): NutritionInfo {
 // ============================================
 export async function POST(request: NextRequest) {
   let mealName = "未知餐點";
-  let language = "zh";
+  let language: "zh" | "en" = "zh";
   
   try {
     const body: AnalyzeMealRequest = await request.json();
     mealName = body.mealName || "未知餐點";
-    language = body.language || "zh";
+    language = body.language === "en" ? "en" : "zh";
 
     if (!mealName || typeof mealName !== 'string' || mealName.trim() === '') {
       return NextResponse.json(
-        { error: "請提供有效的菜名" },
+        { error: language === "en" ? "Please provide a valid meal name" : "請提供有效的菜名" },
         { status: 400 }
       );
     }
 
     // Mock 模式
     if (USE_MOCK_DATA) {
-      const mockNutrition = getMockNutritionData(mealName.trim());
+      const mockNutrition = getMockNutritionData(mealName.trim(), language);
       return NextResponse.json({
         nutrition: mockNutrition
       } as AnalyzeMealResponse);
@@ -159,7 +160,7 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       console.warn('⚠️ 警告: OPENAI_API_KEY 未設定，降級使用 Mock 資料');
-      const mockNutrition = getMockNutritionData(mealName.trim());
+      const mockNutrition = getMockNutritionData(mealName.trim(), language);
       return NextResponse.json({
         nutrition: mockNutrition
       } as AnalyzeMealResponse);
@@ -170,118 +171,32 @@ export async function POST(request: NextRequest) {
       apiKey: apiKey,
     });
 
-    // 根據語言設定不同的 Prompt
+    // 根據語言設定不同的 Prompt（僅 zh/en）
     let systemPrompt = "";
     let userPrompt = "";
     
-    switch (language) {
-      case "en":
-        systemPrompt = `You are a professional nutritionist specializing in toddler nutrition analysis. Please estimate the nutritional content of the food based on the provided meal name.
-
-Please return in JSON format, strictly following this structure:
+    if (language === "en") {
+      systemPrompt = `Analyze the nutrition of the following food. Return the food name and nutrients in English. Output JSON only:
 {
-  "calories": number (unit: kcal),
-  "tags": ["tag1", "tag2", "tag3"] (max 3 key nutrition tags),
-  "benefit": "One sentence describing the nutritional benefits of this dish",
-  "macros": {
-    "protein": "numberg" (protein, unit: g),
-    "carbs": "numberg" (carbohydrates, unit: g),
-    "fat": "numberg" (fat, unit: g)
-  },
-  "micronutrients": {
-    "calcium": "numbermg" (calcium, unit: mg),
-    "iron": "numbermg" (iron, unit: mg),
-    "vitamin_c": "numbermg" (vitamin C, unit: mg)
-  }
+  "calories": number (kcal),
+  "tags": ["tag1","tag2","tag3"],
+  "benefit": "one line",
+  "macros": { "protein": "Xg", "carbs": "Xg", "fat": "Xg" },
+  "micronutrients": { "calcium": "Xmg", "iron": "Xmg", "vitamin_c": "Xmg" }
 }
-
-Please ensure:
-1. Values are reasonable, matching typical toddler meal portions (about 1/3 to 1/2 adult portion)
-2. All values include units
-3. Return valid JSON format only, no additional text or explanations`;
-
-        userPrompt = `Please estimate the nutritional content of the following food: ${mealName.trim()}`;
-        break;
-      case "ja":
-        systemPrompt = `あなたは幼児栄養分析に特化した専門の栄養士です。提供された料理名に基づいて、その食品の栄養成分を推定してください。
-
-JSON形式で返してください。以下の構造を厳密に守ってください：
+Use metric units. Values should be toddler portions (~1/3 to 1/2 adult).`;
+      userPrompt = `Analyze the nutrition of: ${mealName.trim()}. Output language: English.`;
+    } else {
+      systemPrompt = `你是一位專業的營養師，請分析以下食物的營養，回傳繁體中文 JSON：
 {
-  "calories": 数字（単位：kcal）、
-  "tags": ["タグ1", "タグ2", "タグ3"]（最大3つの主要栄養タグ）、
-  "benefit": "この料理の栄養上の利点を説明する一文",
-  "macros": {
-    "protein": "数字g"（タンパク質、単位：g）、
-    "carbs": "数字g"（炭水化物、単位：g）、
-    "fat": "数字g"（脂肪、単位：g）
-  },
-  "micronutrients": {
-    "calcium": "数字mg"（カルシウム、単位：mg）、
-    "iron": "数字mg"（鉄分、単位：mg）、
-    "vitamin_c": "数字mg"（ビタミンC、単位：mg）
-  }
+  "calories": 數字（kcal），
+  "tags": ["標籤1","標籤2","標籤3"],
+  "benefit": "一句話說明",
+  "macros": { "protein": "Xg", "carbs": "Xg", "fat": "Xg" },
+  "micronutrients": { "calcium": "Xmg", "iron": "Xmg", "vitamin_c": "Xmg" }
 }
-
-確認事項：
-1. 数値は合理的で、一般的な幼児食の分量（成人の約1/3から1/2）に適合すること
-2. すべての数値に単位を含めること
-3. 有効なJSON形式のみを返し、追加のテキストや説明を含めないこと`;
-
-        userPrompt = `以下の食品の栄養成分を推定してください：${mealName.trim()}`;
-        break;
-      case "ko":
-        systemPrompt = `당신은 유아 영양 분석에 전문적인 영양사입니다. 제공된 음식 이름을 기반으로 해당 음식의 영양 성분을 추정하세요.
-
-JSON 형식으로 반환하세요. 다음 구조를 엄격히 따르세요:
-{
-  "calories": 숫자 (단위: kcal),
-  "tags": ["태그1", "태그2", "태그3"] (최대 3개의 주요 영양 태그),
-  "benefit": "이 요리의 영양상 이점을 설명하는 한 문장",
-  "macros": {
-    "protein": "숫자g" (단백질, 단위: g),
-    "carbs": "숫자g" (탄수화물, 단위: g),
-    "fat": "숫자g" (지방, 단위: g)
-  },
-  "micronutrients": {
-    "calcium": "숫자mg" (칼슘, 단위: mg),
-    "iron": "숫자mg" (철분, 단위: mg),
-    "vitamin_c": "숫자mg" (비타민C, 단위: mg)
-  }
-}
-
-확인 사항:
-1. 값이 합리적이며 일반적인 유아식 분량(성인 분량의 약 1/3~1/2)에 맞아야 함
-2. 모든 값에 단위 포함
-3. 유효한 JSON 형식만 반환하고 추가 텍스트나 설명 포함하지 않음`;
-
-        userPrompt = `다음 음식의 영양 성분을 추정하세요: ${mealName.trim()}`;
-        break;
-      default: // zh
-        systemPrompt = `你是一位專業的營養師，專精於幼兒營養分析。請根據提供的菜名，估算該食物的營養成分。
-
-請以 JSON 格式回傳，格式必須嚴格遵守以下結構：
-{
-  "calories": 數字（單位：kcal），
-  "tags": ["標籤1", "標籤2", "標籤3"]（最多3個重點營養標籤），
-  "benefit": "一句話說明這道菜的營養好處",
-  "macros": {
-    "protein": "數字g"（蛋白質，單位：g），
-    "carbs": "數字g"（碳水化合物，單位：g），
-    "fat": "數字g"（脂肪，單位：g）
-  },
-  "micronutrients": {
-    "calcium": "數字mg"（鈣質，單位：mg），
-    "iron": "數字mg"（鐵質，單位：mg），
-    "vitamin_c": "數字mg"（維生素C，單位：mg）
-  }
-}
-
-請確保：
-1. 數值要合理，符合一般幼兒餐點的份量（約 1/3 到 1/2 成人份）
-2. 所有數值都要帶單位
-3. 回傳的是有效的 JSON 格式，不要包含任何額外的文字或說明`;
-
-        userPrompt = `請估算以下食物的營養成分：${mealName.trim()}`;
+份量為幼兒份（約 1/3~1/2 成人），請帶單位，只回傳 JSON。`;
+      userPrompt = `請分析以下食物的營養成分：${mealName.trim()}`;
     }
 
     // 呼叫 OpenAI API
@@ -307,13 +222,13 @@ JSON 형식으로 반환하세요. 다음 구조를 엄격히 따르세요:
       nutritionData = parsed;
     } catch (parseError) {
       console.error("解析 OpenAI 回傳失敗，使用 Mock 資料:", parseError);
-      nutritionData = getMockNutritionData(mealName.trim());
+      nutritionData = getMockNutritionData(mealName.trim(), language);
     }
 
     // 驗證資料結構
     if (!nutritionData.calories || !nutritionData.macros) {
       console.warn("OpenAI 回傳資料不完整，使用 Mock 資料");
-      nutritionData = getMockNutritionData(mealName.trim());
+      nutritionData = getMockNutritionData(mealName.trim(), language);
     }
 
     return NextResponse.json({
@@ -321,10 +236,10 @@ JSON 형식으로 반환하세요. 다음 구조를 엄격히 따르세요:
     } as AnalyzeMealResponse);
 
   } catch (error) {
-    console.error("分析營養失敗:", error);
+    console.error(language === "en" ? "Nutrition analysis failed:" : "分析營養失敗:", error);
     
     // 錯誤時回傳 Mock 資料
-    const mockNutrition = getMockNutritionData(mealName);
+    const mockNutrition = getMockNutritionData(mealName, language);
     
     return NextResponse.json({
       nutrition: mockNutrition

@@ -55,6 +55,7 @@ export default function CompleteMealModal({
   onSave,
 }: CompleteMealModalProps) {
   const { language, t } = useLanguage();
+  const tr = (zh: string, en: string) => (language === "en" ? en : zh);
   const [title, setTitle] = useState(recipeTitle);
   const [selectedDate, setSelectedDate] = useState(
     defaultDate ? format(defaultDate, 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')
@@ -187,7 +188,7 @@ export default function CompleteMealModal({
 
     // 檢查檔案大小（限制 5MB）
     if (file.size > 5 * 1024 * 1024) {
-      alert("圖片檔案太大，請選擇小於 5MB 的圖片");
+      alert(tr("圖片檔案太大，請選擇小於 5MB 的圖片", "Image is too large. Please select a file under 5MB."));
       return;
     }
 
@@ -196,8 +197,8 @@ export default function CompleteMealModal({
       const compressedBase64 = await compressImage(file);
       setSelectedImage(compressedBase64);
     } catch (error) {
-      console.error("圖片處理失敗:", error);
-      alert("圖片處理失敗，請重試");
+      console.error(tr("圖片處理失敗:", "Image processing failed:"), error);
+      alert(tr("圖片處理失敗，請重試", "Image processing failed, please try again."));
     } finally {
       setIsUploading(false);
     }
@@ -225,18 +226,18 @@ export default function CompleteMealModal({
         });
 
         if (!response.ok) {
-          throw new Error('分析營養失敗');
+          throw new Error(tr('分析營養失敗', 'Nutrition analysis failed'));
         }
 
         const data = await response.json();
         nutritionData = data.nutrition;
       } catch (error) {
-        console.error("分析營養失敗:", error);
+        console.error(tr("分析營養失敗:", "Nutrition analysis failed:"), error);
         // 如果 API 失敗，使用預設值
         nutritionData = {
           calories: 200,
-          tags: ["營養均衡"],
-          benefit: "營養均衡的幼兒餐點",
+          tags: [tr("營養均衡", "Balanced")],
+          benefit: tr("營養均衡的幼兒餐點", "A balanced toddler meal"),
           macros: {
             protein: "10g",
             carbs: "25g",
@@ -259,8 +260,8 @@ export default function CompleteMealModal({
         // 預設值
         nutritionData = {
           calories: 200,
-          tags: ["營養均衡"],
-          benefit: typeof nutrition === 'string' ? nutrition : "營養均衡的幼兒餐點",
+          tags: [tr("營養均衡", "Balanced")],
+          benefit: typeof nutrition === 'string' ? nutrition : tr("營養均衡的幼兒餐點", "A balanced toddler meal"),
           macros: {
             protein: "10g",
             carbs: "25g",
@@ -442,7 +443,7 @@ export default function CompleteMealModal({
               className="hidden"
             />
             {isUploading ? (
-              <div className="text-ink-dark">處理中...</div>
+              <div className="text-ink-dark">{tr("處理中...", "Processing...")}</div>
             ) : selectedImage ? (
               <div className="relative w-full">
                 <img
@@ -467,8 +468,8 @@ export default function CompleteMealModal({
               <div className="flex flex-col items-center gap-2">
                 <Upload className="w-8 h-8 text-ink-light" />
                 <div className="text-ink-dark font-sans text-sm">
-                  <div className="font-semibold">點擊上傳照片</div>
-                  <div className="text-xs text-ink-dark/70">或留空使用預設圖示</div>
+                    <div className="font-semibold">{tr("點擊上傳照片", "Click to upload a photo")}</div>
+                    <div className="text-xs text-ink-dark/70">{tr("或留空使用預設圖示", "Or leave empty to use default icon")}</div>
                 </div>
               </div>
             )}
@@ -498,7 +499,7 @@ export default function CompleteMealModal({
             ))}
             {rating > 0 && (
               <span className="ml-2 text-sm text-ink-dark font-sans">
-                {rating} 顆愛心
+                {rating} {tr("顆愛心", "hearts")}
               </span>
             )}
           </div>
@@ -580,7 +581,7 @@ export default function CompleteMealModal({
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="例如：寶寶今天吃光光！"
+            placeholder={tr("例如：寶寶今天吃光光！", "e.g., Baby finished everything today!")}
             className="w-full h-24 p-4 rounded-2xl border-2 border-dashed border-moss-green/30 focus:border-deep-teal outline-none resize-none text-ink-dark placeholder-ink-light/50 transition-all tracking-wide font-sans"
             style={{
               backgroundImage: `url("${cardTexture}")`,

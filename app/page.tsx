@@ -24,6 +24,7 @@ interface UserProfile {
 export default function Home() {
   const router = useRouter();
   const { language, t } = useLanguage();
+  const tr = (zh: string, en: string) => (language === "en" ? en : zh);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [selectedMode, setSelectedMode] = useState<Mode>("strict");
   const [inputText, setInputText] = useState("");
@@ -35,37 +36,26 @@ export default function Home() {
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
 
-  const uiText = language === "en"
-    ? {
-        diary: "Diary",
-        cookingNow: "Cooking...",
-        cookMagic: "Generate Recipe",
-        ingredients: "Ingredients",
-        steps: "Steps",
-        nutrition: "Nutrition",
-        nutritionTags: "Nutrition Tags",
-        tip: "Dietitian Note",
-        micronutrients: "Micronutrients",
-        adults: t.labels.adult_menu || "👩‍🍳 For Adults",
-        stepsLabel: "Steps:",
-        imageBtn: "Images",
-        defaultSearch: "toddler recipe",
-      }
-    : {
-        diary: "飲食日記",
-        cookingNow: "魔法進行中...",
-        cookMagic: "變出魔法食譜",
-        ingredients: "食材清單",
-        steps: "料理步驟",
-        nutrition: "營養資訊",
-        nutritionTags: "營養標籤",
-        tip: "營養師小語",
-        micronutrients: "微量營養素",
-        adults: t.labels.adult_menu || "👩‍🍳 同場加映：大人吃什麼？",
-        stepsLabel: "料理步驟：",
-        imageBtn: "圖片",
-        defaultSearch: "幼兒食譜",
-      };
+  const uiText = {
+    diary: tr("飲食日記", "Diary"),
+    cookingNow: tr("魔法進行中...", "Cooking..."),
+    cookMagic: tr("變出魔法食譜", "Generate Recipe"),
+    ingredients: tr("食材清單", "Ingredients"),
+    steps: tr("料理步驟", "Steps"),
+    nutrition: tr("營養資訊", "Nutrition"),
+    nutritionTags: tr("營養標籤", "Nutrition Tags"),
+    tip: tr("營養師小語", "Dietitian Note"),
+    micronutrients: tr("微量營養素", "Micronutrients"),
+    adults: language === "en" ? "👩‍🍳 For Adults" : (t.labels.adult_menu || "👩‍🍳 同場加映：大人吃什麼？"),
+    stepsLabel: tr("料理步驟：", "Steps:"),
+    imageBtn: tr("圖片", "Images"),
+    defaultSearch: tr("幼兒食譜", "toddler recipe"),
+    errApi: tr("API 錯誤", "API error"),
+    errGenerate: tr("生成食譜失敗", "Generate failed"),
+    retryLater: tr("請稍後再試", "Please try later"),
+    netRetry: tr("請檢查網路連線後重試", "Check network connection and retry"),
+    ageFallback: tr("適合幼兒", "Toddler-friendly"),
+  };
 
   // 計算年齡
   const calculateAge = (birthday: string): string => {
@@ -81,11 +71,11 @@ export default function Home() {
     }
     
     if (years === 0) {
-      return `${months}個月`;
+      return language === "en" ? `${months} mo` : `${months}個月`;
     } else if (months === 0) {
-      return `${years}歲`;
+      return language === "en" ? `${years} yr` : `${years}歲`;
     } else {
-      return `${years}歲${months}個月`;
+      return language === "en" ? `${years} yr ${months} mo` : `${years}歲${months}個月`;
     }
   };
 
@@ -118,31 +108,31 @@ export default function Home() {
   const modes = [
     {
       id: "strict" as Mode,
-      title: "現在就要煮 ❤️‍🔥",
-      subtitle: "只使用現有食材",
-      placeholder: "現在桌上有什麼食材？例如：高麗菜、絞肉...",
+      title: tr("現在就要煮 ❤️‍🔥", "Cook now ❤️‍🔥"),
+      subtitle: tr("只使用現有食材", "Use only current ingredients"),
+      placeholder: tr("現在桌上有什麼食材？例如：高麗菜、絞肉...", "What ingredients do you have? e.g., cabbage, minced pork..."),
     },
     {
       id: "creative" as Mode,
-      title: "發揮創意 💭",
-      subtitle: "彈性加入常見食材或佐料",
-      placeholder: "冰箱剩什麼？例如：高麗菜、吻仔魚...",
+      title: tr("發揮創意 💭", "Be creative 💭"),
+      subtitle: tr("彈性加入常見食材或佐料", "Add common items flexibly"),
+      placeholder: tr("冰箱剩什麼？例如：高麗菜、吻仔魚...", "What's left in the fridge? e.g., cabbage, whitebait..."),
     },
     {
       id: "shopping" as Mode,
-      title: "採買靈感 🛒",
-      subtitle: "輸入想吃的，規劃完整採買清單",
-      placeholder: "想讓寶寶吃什麼口味？例如：南瓜濃湯...",
+      title: tr("採買靈感 🛒", "Shopping inspo 🛒"),
+      subtitle: tr("輸入想吃的，規劃完整採買清單", "Tell us what you crave; we'll list full shopping items"),
+      placeholder: tr("想讓寶寶吃什麼口味？例如：南瓜濃湯...", "What flavor for baby? e.g., pumpkin soup..."),
     },
   ];
 
 
   const cookingTools = [
-    { value: "any", label: "不限工具" },
-    { value: "rice-cooker", label: "電鍋 (最推薦)" },
-    { value: "pan", label: "平底鍋" },
-    { value: "pot", label: "燉鍋" },
-    { value: "oven", label: "烤箱" },
+    { value: "any", label: tr("不限工具", "Any tool") },
+    { value: "rice-cooker", label: tr("電鍋 (最推薦)", "Rice cooker (recommended)") },
+    { value: "pan", label: tr("平底鍋", "Pan") },
+    { value: "pot", label: tr("燉鍋", "Pot") },
+    { value: "oven", label: tr("烤箱", "Oven") },
   ];
 
   const currentMode = modes.find((m) => m.id === selectedMode)!;
@@ -225,23 +215,23 @@ export default function Home() {
 
       // 檢查回應狀態
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: `API 錯誤: ${response.status}` }));
-        const errorMessage = errorData.error || `API 錯誤: ${response.status}`;
-        console.error('API 錯誤:', errorMessage);
-        alert(`API 錯誤: ${errorMessage}`);
+        const errorData = await response.json().catch(() => ({ error: `${uiText.errApi}: ${response.status}` }));
+        const errorMessage = errorData.error || `${uiText.errApi}: ${response.status}`;
+        console.error('API error:', errorMessage);
+        alert(`${uiText.errApi}: ${errorMessage}`);
         
         // 處理 nutrition 資料
         let errorNutrition: NutritionInfo | string[] | string;
         if (typeof errorData.nutrition === 'object' && errorData.nutrition !== null && 'calories' in errorData.nutrition) {
           errorNutrition = errorData.nutrition;
         } else {
-          errorNutrition = typeof errorData.nutrition === 'string' ? [errorData.nutrition] : [errorData.nutrition || "發生錯誤"];
+          errorNutrition = typeof errorData.nutrition === 'string' ? [errorData.nutrition] : [errorData.nutrition || tr("發生錯誤", "Error")];
         }
         
         // 即使錯誤也顯示結果（如果有部分資料）
         setRecipeResult({
-          name: errorData.title || "無法生成食譜",
-          age: "請重新輸入",
+          name: errorData.title || uiText.errGenerate,
+          age: uiText.retryLater,
           nutrition: errorNutrition,
           ingredients: errorData.ingredients || [],
           steps: errorData.steps || [],
@@ -272,8 +262,8 @@ export default function Home() {
         
         setRecipeResult({
           name: firstRecipe.title,
-          age: firstRecipe.serving_info || "適合幼兒",
-          time: firstRecipe.time || "20 分鐘",
+          age: firstRecipe.serving_info || uiText.ageFallback,
+          time: firstRecipe.time || tr("20 分鐘", "20 mins"),
           nutrition: firstRecipe.nutrition,
           ingredients: ingredientsArray,
           steps: firstRecipe.steps || [],
@@ -294,8 +284,8 @@ export default function Home() {
           };
         }
         setRecipeResult({
-          name: data.title || "無法生成食譜",
-          age: "請重新輸入",
+          name: data.title || tr("無法生成食譜", "Unable to generate recipe"),
+          age: tr("請重新輸入", "Please re-enter"),
           nutrition: nutritionData,
           ingredients: data.ingredients || [],
           steps: data.steps || [],
@@ -315,16 +305,16 @@ export default function Home() {
         } else {
           nutritionData = {
             calories: 200,
-            tags: ["營養均衡"],
-            benefit: "營養均衡的幼兒餐點",
+            tags: [tr("營養均衡", "Balanced")],
+            benefit: tr("營養均衡的幼兒餐點", "A balanced toddler meal"),
             macros: { protein: "10g", carbs: "25g", fat: "8g" }
           };
         }
         
         setRecipeResult({
-          name: data.title || "幼兒食譜",
-          age: "適合幼兒",
-          time: data.time || "20 分鐘",
+          name: data.title || tr("幼兒食譜", "Toddler recipe"),
+          age: uiText.ageFallback,
+          time: data.time || tr("20 分鐘", "20 mins"),
           nutrition: nutritionData,
           ingredients: Array.isArray(data.ingredients) ? data.ingredients : [],
           steps: Array.isArray(data.steps) ? data.steps : [],
@@ -336,20 +326,20 @@ export default function Home() {
       setIsLoading(false);
       setShowResult(true);
     } catch (error) {
-      console.error("生成食譜失敗:", error);
-      const errorMessage = error instanceof Error ? error.message : "未知錯誤";
-      alert(`生成食譜失敗: ${errorMessage}`);
+      console.error(tr("生成食譜失敗:", "Generate recipe failed:"), error);
+      const errorMessage = error instanceof Error ? error.message : tr("未知錯誤", "Unknown error");
+      alert(`${uiText.errGenerate}: ${errorMessage}`);
       
       setIsLoading(false);
       setShowResult(true);
       // 使用預設錯誤訊息
       setRecipeResult({
-        name: "生成食譜失敗",
-        age: "請稍後再試",
+        name: uiText.errGenerate,
+        age: uiText.retryLater,
         nutrition: {
           calories: 0,
           tags: [],
-          benefit: "請稍後再試",
+          benefit: uiText.retryLater,
           macros: {
             protein: "0g",
             carbs: "0g",
@@ -357,7 +347,7 @@ export default function Home() {
           }
         },
         ingredients: [],
-        steps: ["請檢查網路連線後重試"],
+        steps: [uiText.netRetry],
         searchKeywords: "",
       });
     }
@@ -421,7 +411,7 @@ export default function Home() {
               >
                 <Calendar className="w-4 h-4 text-ink-dark" />
                 <span className="text-xs sm:text-sm font-medium text-ink-dark tracking-wide hidden sm:inline">
-                  {language === "en" ? "Diary" : "飲食日記"}
+                  {uiText.diary}
                 </span>
               </button>
               <LanguageSwitcher />
@@ -521,7 +511,7 @@ export default function Home() {
                   backgroundImage: `url("${cardTexture}")`,
                   backgroundSize: 'cover',
                 } : {}}
-                title="鍵盤輸入"
+                title={tr("鍵盤輸入", "Keyboard")}
               >
                 <Keyboard className="w-4 h-4" />
               </button>
@@ -536,7 +526,7 @@ export default function Home() {
                   backgroundImage: `url("${cardTexture}")`,
                   backgroundSize: 'cover',
                 } : {}}
-                title="語音輸入"
+                title={tr("語音輸入", "Voice")}
               >
                 <Mic className="w-4 h-4" />
               </button>
@@ -551,7 +541,7 @@ export default function Home() {
                   backgroundImage: `url("${cardTexture}")`,
                   backgroundSize: 'cover',
                 } : {}}
-                title="影像辨識"
+                title={tr("影像辨識", "Camera")}
               >
                 <Camera className="w-4 h-4" />
               </button>
@@ -561,7 +551,7 @@ export default function Home() {
           {/* 其他選項：烹飪工具 */}
           <div className="mt-6">
             <label className="block text-base font-semibold text-ink-dark mb-3 tracking-wide">
-              烹飪工具 <span className="text-ink-light text-sm font-normal">(選填)</span>
+              {tr("烹飪工具", "Cooking tool")} <span className="text-ink-light text-sm font-normal">({tr("選填", "Optional")})</span>
             </label>
             <select
               value={selectedTool}
@@ -630,8 +620,8 @@ export default function Home() {
                           : [];
                         setRecipeResult({
                           name: selectedRecipe.title,
-                          age: selectedRecipe.serving_info || "適合幼兒",
-                          time: selectedRecipe.time || "20 分鐘",
+                          age: selectedRecipe.serving_info || uiText.ageFallback,
+                          time: selectedRecipe.time || tr("20 分鐘", "20 mins"),
                           nutrition: selectedRecipe.nutrition,
                           ingredients: ingredientsArray,
                           steps: selectedRecipe.steps || [],
@@ -676,13 +666,13 @@ export default function Home() {
               </div>
               {recipeResult.searchKeywords && (
                 <a
-                  href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(recipeResult.searchKeywords)}`}
+                  href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(recipeResult.searchKeywords || uiText.defaultSearch)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-all shadow-lg shadow-blue-300/50 hover:scale-105 active:scale-100 border-2 border-blue-700 tracking-wide flex items-center gap-2"
                 >
                   <Search className="w-4 h-4" />
-                  <span className="text-sm">圖片</span>
+                  <span className="text-sm">{uiText.imageBtn}</span>
                 </a>
               )}
             </div>
@@ -701,7 +691,7 @@ export default function Home() {
             {/* 食材清單 */}
             <div className="mb-8">
               <h4 className="text-xl font-bold text-ink-dark mb-4 tracking-wide font-sans">
-                食材清單
+                {uiText.ingredients}
               </h4>
               <ul className="space-y-3 pl-2">
                 {recipeResult.ingredients.map((ingredient, idx) => (
@@ -716,7 +706,7 @@ export default function Home() {
             {/* 料理步驟 */}
             <div>
               <h4 className="text-xl font-bold text-ink-dark mb-4 tracking-wide font-sans">
-                料理步驟
+                {uiText.steps}
               </h4>
               <ol className="space-y-4 pl-2">
                 {recipeResult.steps.map((step, idx) => (
@@ -742,7 +732,7 @@ export default function Home() {
                 }}
               >
                 <h4 className="text-xl font-bold text-ink-dark mb-4 tracking-wide font-sans">
-                  營養資訊
+                  {uiText.nutrition}
                 </h4>
                 
                 <div className="space-y-4">
@@ -750,7 +740,7 @@ export default function Home() {
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">🔥</span>
                     <div>
-                      <div className="text-sm text-ink-light">熱量</div>
+                      <div className="text-sm text-ink-light">{tr("熱量", "Calories")}</div>
                       <div className="text-lg font-bold text-ink-dark font-sans">
                         {recipeResult.nutrition.calories} kcal
                       </div>
@@ -762,7 +752,7 @@ export default function Home() {
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">🏷️</span>
                       <div className="flex-1">
-                        <div className="text-sm text-ink-light mb-2">營養標籤</div>
+                        <div className="text-sm text-ink-light mb-2">{uiText.nutritionTags}</div>
                         <div className="flex flex-wrap gap-2">
                           {recipeResult.nutrition.tags.map((tag, idx) => (
                             <span
@@ -782,7 +772,7 @@ export default function Home() {
                     <div className="flex items-start gap-3 pt-2 border-t-2 border-dashed border-moss-green/30">
                       <span className="text-2xl">💡</span>
                       <div className="flex-1">
-                        <div className="text-sm text-ink-light mb-1">營養師小語</div>
+                        <div className="text-sm text-ink-light mb-1">{uiText.tip}</div>
                         <div className="text-base text-ink-dark leading-relaxed font-sans">
                           {recipeResult.nutrition.benefit}
                         </div>
@@ -795,16 +785,16 @@ export default function Home() {
                     <div className="flex items-start gap-3 pt-2 border-t-2 border-dashed border-moss-green/30">
                       <span className="text-2xl">🔬</span>
                       <div className="flex-1">
-                        <div className="text-sm text-ink-light mb-2">微量營養素</div>
+                        <div className="text-sm text-ink-light mb-2">{uiText.micronutrients}</div>
                         <div className="flex flex-wrap gap-3 text-xs text-ink-light font-sans">
                           {recipeResult.nutrition.micronutrients.calcium && (
-                            <span>鈣：{recipeResult.nutrition.micronutrients.calcium}</span>
+                            <span>{t.nutrients.calcium}：{recipeResult.nutrition.micronutrients.calcium}</span>
                           )}
                           {recipeResult.nutrition.micronutrients.iron && (
-                            <span>鐵：{recipeResult.nutrition.micronutrients.iron}</span>
+                            <span>{t.nutrients.iron}：{recipeResult.nutrition.micronutrients.iron}</span>
                           )}
                           {recipeResult.nutrition.micronutrients.vitamin_c && (
-                            <span>維生素C：{recipeResult.nutrition.micronutrients.vitamin_c}</span>
+                            <span>{t.nutrients.vitamin_c}：{recipeResult.nutrition.micronutrients.vitamin_c}</span>
                           )}
                         </div>
                       </div>
@@ -819,7 +809,7 @@ export default function Home() {
               <div className="mt-10 mb-8">
                 <h4 className="text-xl font-bold text-ink-dark mb-6 tracking-wide font-sans flex items-center gap-2">
                   <span className="text-2xl">👩‍🍳</span>
-                  同場加映：大人吃什麼？
+                  {uiText.adults}
                 </h4>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -842,7 +832,7 @@ export default function Home() {
                         {recipesData.recipes[selectedRecipeIndex].adults_menu.parallel.desc}
                       </p>
                       <div className="space-y-2">
-                        <div className="text-xs font-semibold text-ink-dark mb-2">料理步驟：</div>
+                        <div className="text-xs font-semibold text-ink-dark mb-2">{uiText.stepsLabel}</div>
                         {recipesData.recipes[selectedRecipeIndex].adults_menu.parallel.steps.map((step, idx) => (
                           <div key={idx} className="flex gap-2 text-sm text-ink-dark">
                             <span className="text-deep-teal font-bold">{idx + 1}.</span>
@@ -872,7 +862,7 @@ export default function Home() {
                         {recipesData.recipes[selectedRecipeIndex].adults_menu.remix.desc}
                       </p>
                       <div className="space-y-2">
-                        <div className="text-xs font-semibold text-ink-dark mb-2">料理步驟：</div>
+                        <div className="text-xs font-semibold text-ink-dark mb-2">{uiText.stepsLabel}</div>
                         {recipesData.recipes[selectedRecipeIndex].adults_menu.remix.steps.map((step, idx) => (
                           <div key={idx} className="flex gap-2 text-sm text-ink-dark">
                             <span className="text-deep-teal font-bold">{idx + 1}.</span>
@@ -909,9 +899,9 @@ export default function Home() {
 
                 {/* 左下：YouTube */}
                 <a
-                  href={`https://www.youtube.com/results?search_query=${encodeURIComponent(recipeResult.searchKeywords || recipeResult.name || "幼兒食譜")}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href={`https://www.youtube.com/results?search_query=${encodeURIComponent(recipeResult.searchKeywords || recipeResult.name || uiText.defaultSearch)}`}
+            target="_blank"
+            rel="noopener noreferrer"
                   className="flex items-center justify-center px-3 md:px-4 py-3 md:py-4 h-auto bg-sage-green hover:opacity-90 active:scale-95 text-white rounded-2xl font-semibold transition-all tracking-wide"
                 >
                   <Youtube className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2" />
@@ -920,14 +910,14 @@ export default function Home() {
 
                 {/* 右下：Google */}
                 <a
-                  href={`https://www.google.com/search?q=${encodeURIComponent(recipeResult.searchKeywords || recipeResult.name || "幼兒食譜")}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href={`https://www.google.com/search?q=${encodeURIComponent(recipeResult.searchKeywords || recipeResult.name || uiText.defaultSearch)}`}
+            target="_blank"
+            rel="noopener noreferrer"
                   className="flex items-center justify-center px-3 md:px-4 py-3 md:py-4 h-auto bg-sage-green hover:opacity-90 active:scale-95 text-white rounded-2xl font-semibold transition-all tracking-wide"
-                >
+          >
                   <Search className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2" />
                   <span className="text-xs sm:text-sm md:text-base whitespace-nowrap">{t.buttons.google}</span>
-                </a>
+          </a>
               </div>
             </div>
           </div>
@@ -943,7 +933,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-12 border-t-2 border-dashed border-stone-400/50">
         <p className="text-center text-sm text-ink-light tracking-wide">
-          © 2024 幼兒食譜魔法師 - 讓每一餐都充滿愛與營養
+          {tr("© 2024 幼兒食譜魔法師 - 讓每一餐都充滿愛與營養", "© 2024 Toddler Recipe Magician - Every meal with love and nutrition")}
         </p>
       </footer>
 

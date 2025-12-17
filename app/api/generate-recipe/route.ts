@@ -248,18 +248,19 @@ export async function POST(request: NextRequest) {
   let ingredients = "";
   let toolValue = "any";
   let babyAge: string | undefined = undefined;
+  let language: "zh" | "en" = "zh";
   
   try {
     // 讀取請求資料
     body = await request.json();
     console.log('API收到請求:', body);
     
-    const { ingredients: userIngredients, mode: userMode, tool, age, language = "zh" } = body;
+    const { ingredients: userIngredients, mode: userMode, tool, age, language: langFromReq } = body;
     ingredients = userIngredients || "";
     mode = userMode || "strict";
     toolValue = tool || "any";
     babyAge = age;
-    const selectedLanguage = language || "zh";
+    language = langFromReq === "en" ? "en" : "zh";
 
     // 驗證必要參數
     if (!ingredients || typeof ingredients !== "string" || ingredients.trim().length === 0) {
@@ -290,7 +291,38 @@ export async function POST(request: NextRequest) {
     // ============================================
     if (USE_MOCK_DATA) {
       console.log('✅ 使用模擬資料');
-      const mockData = getMockRecipeData(mode, ingredients);
+      const mockDataZh = getMockRecipeData(mode, ingredients);
+      const mockDataEn: RecipeResponse = {
+        recipes: mockDataZh.recipes.map((r, idx) => ({
+          ...r,
+          style: idx === 0 ? "Chinese" as any : idx === 1 ? "Western" as any : "Japanese" as any,
+          title: `Mock Recipe ${idx + 1}`,
+          ingredients: r.ingredients.map((ing) => ({ name: `Ingredient ${ing.name}`, amount: ing.amount })),
+          nutrition: {
+            ...r.nutrition,
+            tags: ["protein", "fiber"],
+            benefit: "Sample nutrition note for demo.",
+          },
+          serving_info: "About 1 bowl (≈ 1/3 adult serving)",
+          steps: r.steps.map((s, i) => `Step ${i + 1}: ${s}`),
+          adults_menu: {
+            parallel: {
+              ...r.adults_menu.parallel,
+              title: "Adult Version - Stir Fry",
+              desc: "Use same ingredients and season for adults.",
+              steps: ["Prep", "Cook", "Serve"],
+            },
+            remix: {
+              ...r.adults_menu.remix,
+              title: "Remix - Baked Goodness",
+              desc: "Upgrade with cheese and spices.",
+              steps: ["Combine", "Bake", "Enjoy"],
+            },
+          },
+          searchKeywords: "toddler recipe demo"
+        }))
+      };
+      const mockData = language === "en" ? mockDataEn : mockDataZh;
       return NextResponse.json(mockData, { status: 200 });
     }
 
@@ -316,151 +348,132 @@ export async function POST(request: NextRequest) {
     let modeInstruction = "";
     switch (mode) {
       case "strict":
-        modeInstruction = "嚴格限制：只能使用使用者提供的食材，不能添加任何其他食材或佐料。如果食材不足，請提供最簡單的料理方式。強調快速上桌。";
+        modeInstruction = language === "en"
+          ? "Strict: only use user-provided ingredients; no extra seasonings. If ingredients are insufficient, propose the simplest method. Emphasize quick serving."
+          : "嚴格限制：只能使用使用者提供的食材，不能添加任何其他食材或佐料。如果食材不足，請提供最簡單的料理方式。強調快速上桌。";
         break;
       case "creative":
-        modeInstruction = "必須包含使用者提供的所有食材，可以添加少量常見的佐料（如雞蛋、起司、蔥花等）來增加營養和風味。強調營養均衡。";
+        modeInstruction = language === "en"
+          ? "Must include all user ingredients; may add a few common condiments (egg, cheese, scallion) for balance. Emphasize nutrition."
+          : "必須包含使用者提供的所有食材，可以添加少量常見的佐料（如雞蛋、起司、蔥花等）來增加營養和風味。強調營養均衡。";
         break;
       case "shopping":
-        modeInstruction = "使用者提供的食材只是靈感來源，請設計一個完整的幼兒食譜，並列出完整的採買清單（包含所有需要的食材和份量）。在步驟最後提醒使用者記得採買。";
+        modeInstruction = language === "en"
+          ? "User ingredients are inspiration; design a complete toddler recipe and provide a full shopping list with amounts. Remind to shop at the end."
+          : "使用者提供的食材只是靈感來源，請設計一個完整的幼兒食譜，並列出完整的採買清單（包含所有需要的食材和份量）。在步驟最後提醒使用者記得採買。";
         break;
       default:
-        modeInstruction = "必須包含使用者提供的食材。";
+        modeInstruction = language === "en" ? "Must include the user-provided ingredients." : "必須包含使用者提供的食材。";
     }
 
     // 烹飪工具說明
     const toolInstruction = toolValue && toolValue !== "any" 
-      ? `請使用 ${toolValue === "rice-cooker" ? "電鍋" : toolValue === "pan" ? "平底鍋" : toolValue === "pot" ? "燉鍋" : "烤箱"} 來製作這道料理。`
-      : "可以使用任何常見的烹飪工具。";
+      ? (language === "en"
+          ? `Use ${toolValue === "rice-cooker" ? "a rice cooker" : toolValue === "pan" ? "a pan" : toolValue === "pot" ? "a pot" : "an oven"} to cook.`
+          : `請使用 ${toolValue === "rice-cooker" ? "電鍋" : toolValue === "pan" ? "平底鍋" : toolValue === "pot" ? "燉鍋" : "烤箱"} 來製作這道料理。`)
+      : (language === "en" ? "Any common cookware is fine." : "可以使用任何常見的烹飪工具。");
 
     // 份量換算說明
     const servingInstruction = babyAge 
-      ? `根據寶寶年齡 ${babyAge}，請使用以下份量換算：
+      ? (language === "en"
+          ? `Based on baby age ${babyAge}, use these conversions:
+- Age 1-2: ~1/3 adult portion
+- Age 2-3: ~1/2 adult portion
+- Age 3+: ~2/3 adult portion
+State the ratio in serving_info (e.g., "About 1 bowl (~1/3 adult serving)").`
+          : `根據寶寶年齡 ${babyAge}，請使用以下份量換算：
 - 1~2 歲：約 1/3 成人份量
 - 2~3 歲：約 1/2 成人份量
 - 3 歲以上：約 2/3 成人份量
-請在 serving_info 中明確標示這個比例（例如：「產出 1 碗 (約 1/3 成人份)」）。`
-      : `請根據一般幼兒份量（約 1/3 到 1/2 成人份）來設計，並在 serving_info 中明確標示（例如：「產出 1 碗 (約 1/3 成人份)」）。`;
+請在 serving_info 中明確標示這個比例（例如：「產出 1 碗 (約 1/3 成人份)」）。`)
+      : (language === "en"
+          ? `Use toddler portions (about 1/3 to 1/2 adult) and state in serving_info (e.g., "About 1 bowl (~1/3 adult serving)").`
+          : `請根據一般幼兒份量（約 1/3 到 1/2 成人份）來設計，並在 serving_info 中明確標示（例如：「產出 1 碗 (約 1/3 成人份)」）。`);
 
-    // 根據語言設定不同的 System Prompt 開頭
-    let systemPromptStart = "";
-    let styleLabels: { chinese: string; western: string; japanese: string } = { chinese: "中式", western: "西式", japanese: "日式" };
-    
-    switch (selectedLanguage) {
-      case "en":
-        systemPromptStart = `You are an expert nutritionist and creative chef specializing in "Parent-Child Shared Meals" for toddlers. You specialize in designing nutritious, safe, and easy-to-make baby food and toddler meals for babies aged 6 months to 3 years, while also providing adult meal suggestions for parents.
+    // system prompt
+    const systemPrompt = language === "en"
+      ? `You are an expert pediatric nutritionist. You MUST output the JSON strictly in English. Even if the user input is in Chinese, translate and generate recipes in English. Use Metric units (g, ml).
 
-Your task: Based on the ingredients provided by the user, generate 3 different style recipes (Chinese, Western, Japanese) for babies, and provide two adult meal variations for each recipe.
-
-Important: Output ONLY JSON in English. Use metric units.`;
-        styleLabels = { chinese: "Chinese", western: "Western", japanese: "Japanese" };
-        break;
-      case "ja":
-        systemPromptStart = `あなたは「親子で一緒に食べる」に精通した専門の日本の幼児栄養士とクリエイティブシェフです。6ヶ月から3歳の赤ちゃんのための栄養バランスの取れた、安全で簡単に作れる離乳食と幼児食を設計し、同時に保護者に大人用の料理提案を提供することに専念しています。
-
-あなたのタスク：ユーザーが提供した食材に基づいて、3つの異なるスタイル（中華風、洋風、和風）の赤ちゃん用レシピを生成し、各レシピに対して2つの大人用バリエーションを提供してください。
-
-重要：日本語でJSONのみを出力してください。`;
-        styleLabels = { chinese: "中華風", western: "洋風", japanese: "和風" };
-        break;
-      case "ko":
-        systemPromptStart = `당신은 "부모-자녀 공유 식사"에 정통한 전문 한국 유아 영양사이자 창의적인 셰프입니다. 6개월부터 3세까지의 아기를 위한 영양이 균형 잡힌, 안전하고 쉽게 만들 수 있는 이유식과 유아식을 설계하고, 동시에 부모를 위한 성인용 식사 제안을 제공하는 데 전문적입니다.
-
-귀하의 작업: 사용자가 제공한 재료를 기반으로 3가지 다른 스타일(중식, 양식, 일식)의 아기용 레시피를 생성하고, 각 레시피에 대해 2가지 성인용 변형을 제공하세요.
-
-중요: 한국어로 JSON만 출력하세요.`;
-        styleLabels = { chinese: "중식", western: "양식", japanese: "일식" };
-        break;
-      default: // zh
-        systemPromptStart = `你是一位精通「親子共食」的專業台灣幼兒營養師與創意主廚，專精於為 6 個月到 3 歲的寶寶設計營養均衡、安全易做的副食品和幼兒餐點，同時為家長提供大人版本的料理建議。
-
-你的任務：根據使用者提供的食材，生成 3 道不同風格（中式、西式、日式）的寶寶食譜，並為每一道食譜提供兩個大人版本的變體建議。`;
+Rules:
+- Auto-correct ingredient typos.
+- Safe for toddlers; avoid allergens/dangerous items.
+- Simple methods for busy parents.
+- Balanced nutrition (protein/veg/carbs).
+- ${modeInstruction}
+- ${toolInstruction}
+- ${servingInstruction}
+- Compute nutrition (calories, macros, micronutrients calcium/iron/vitamin_c with units).
+- Portion ratios as specified; include serving_info.
+- Adults menu: two versions (parallel using same ingredients; remix upgrading the baby dish).
+Return exactly JSON of this shape:
+{
+  "recipes": [
+    {
+      "style": "Chinese/Western/Japanese",
+      "title": "Baby dish title",
+      "ingredients": [{"name": "Chicken", "amount": "50g"}],
+      "nutrition": {
+        "calories": 200,
+        "tags": ["protein","calcium"],
+        "benefit": "One-line nutrition highlight",
+        "macros": { "protein": "15g", "carbs": "30g", "fat": "10g" },
+        "micronutrients": { "calcium": "120mg", "iron": "2.5mg", "vitamin_c": "30mg" }
+      },
+      "serving_info": "About 1 bowl (~1/3 adult serving)",
+      "steps": ["Step 1", "Step 2"],
+      "time": "20 minutes",
+      "adults_menu": {
+        "parallel": { "title": "Adult version", "desc": "...", "steps": ["..."] },
+        "remix": { "title": "Remix", "desc": "...", "steps": ["..."] }
+      },
+      "searchKeywords": "keywords for search"
     }
+  ]
+}
+Return ONLY JSON.`
+      : `你是專業的幼兒營養師，請輸出嚴格符合 JSON 結構的繁體中文結果。
 
-    // 構建完整的 prompt
-    const systemPrompt = `${systemPromptStart}
-
-重要規則：
-1. **錯字修正 (Auto-Correction)**：若使用者輸入的食材有拼寫錯誤（如 'bannana', 'toamto', '高麗蔡'），請自動修正為正確的英文/中文名稱後再生成食譜，不要照抄錯字。
-2. 所有食材必須適合幼兒食用，避免過敏原和危險食材
-3. 料理方式必須簡單安全，適合忙碌的家長
-4. 營養要均衡，包含蛋白質、蔬菜、碳水化合物
-5. ${modeInstruction}
-6. ${toolInstruction}
-7. ${servingInstruction}
-8. **你必須為每道菜計算營養成分**，包括熱量、三大營養素（蛋白質、碳水化合物、脂肪），以及營養標籤
-9. **詳細營養資訊 (Micronutrients)**：必須在 nutrition 物件中加入 micronutrients，包含：
-   - calcium (鈣)：數值需帶單位，如 "120mg"
-   - iron (鐵)：數值需帶單位，如 "2.5mg"
-   - vitamin_c (維生素C)：數值需帶單位，如 "30mg"
-10. **份量換算公式（必須遵守）**：
-    - 1~2 歲：約 1/3 成人份量
-    - 2~3 歲：約 1/2 成人份量
-    - 3 歲以上：約 2/3 成人份量
-    請在 serving_info 中明確標示這個比例
-
-大人食譜建議規則：
-- **Option 1 (parallel - 平行料理)**：使用完全相同的食材，但煮成適合大人口味的菜（例如：寶寶吃清蒸雞肉，大人吃宮保雞丁）。可以加入調味料、香料、辣椒等。
-- **Option 2 (remix - 美味加工)**：以做好的寶寶料理為基底，加入調味或配料進行「升級」（例如：寶寶吃南瓜燉飯，大人加培根、黑胡椒並焗烤）。
-
-請以 JSON 格式回傳，格式必須嚴格遵守以下結構：
+規則：
+- 錯字修正，避免危險食材
+- 簡單安全、營養均衡
+- ${modeInstruction}
+- ${toolInstruction}
+- ${servingInstruction}
+- 計算營養（熱量、三大營養素、micronutrients: calcium/iron/vitamin_c，需帶單位）
+- serving_info 標明份量比例
+- adults_menu：parallel（同食材）、remix（加工升級）
+回傳結構：
 {
   "recipes": [
     {
       "style": "中式/西式/日式",
-      "title": "寶寶食譜名稱（例如：寶寶南瓜雞肉粥）",
-      "ingredients": [
-        {"name": "雞肉", "amount": "50g"},
-        {"name": "南瓜", "amount": "100g"}
-      ],
+      "title": "寶寶食譜名稱",
+      "ingredients": [{"name": "雞肉", "amount": "50g"}],
       "nutrition": {
         "calories": 200,
-        "tags": ["蛋白質", "鈣質", "維生素A"],
-        "benefit": "一句話營養亮點（例如：南瓜含有豐富的β-胡蘿蔔素，有助於視力發育！）",
-        "macros": {
-          "protein": "15g",
-          "carbs": "30g",
-          "fat": "10g"
-        },
-        "micronutrients": {
-          "calcium": "120mg",
-          "iron": "2.5mg",
-          "vitamin_c": "30mg"
-        }
+        "tags": ["蛋白質","鈣質"],
+        "benefit": "一句話營養亮點",
+        "macros": { "protein": "15g", "carbs": "30g", "fat": "10g" },
+        "micronutrients": { "calcium": "120mg", "iron": "2.5mg", "vitamin_c": "30mg" }
       },
       "serving_info": "約 1 碗 (相當於 1/3 成人份)",
-      "steps": ["步驟1", "步驟2", "步驟3"],
-      "time": "準備時間（例如：20 分鐘）",
+      "steps": ["步驟1","步驟2"],
+      "time": "20 分鐘",
       "adults_menu": {
-        "parallel": {
-          "title": "大人版：香辣南瓜炒雞丁",
-          "desc": "利用剩下的雞肉與南瓜切塊，下鍋爆炒，加入乾辣椒、花椒等調味，做成重口味的大人菜。",
-          "steps": ["雞肉抓醃...", "大火快炒...", "加入調味料..."]
-        },
-        "remix": {
-          "title": "加工版：焗烤南瓜雞肉燉飯",
-          "desc": "將寶寶的粥底鋪上起司與黑胡椒，放入烤箱焗烤，做成大人版燉飯。",
-          "steps": ["撒上起司...", "烤箱 200度...", "烤至金黃..."]
-        }
+        "parallel": { "title": "大人版", "desc": "...", "steps": ["..."] },
+        "remix": { "title": "加工版", "desc": "...", "steps": ["..."] }
       },
-      "searchKeywords": "用於 YouTube 和 Google 搜尋的關鍵字"
+      "searchKeywords": "用於搜尋的關鍵字"
     }
   ]
 }
+請只回傳 JSON。`;
 
-營養資訊要求：
-- calories: 數字（單位：kcal），請根據食材份量合理估算（針對寶寶份量）
-- tags: 字串陣列，最多3個重點營養標籤
-- benefit: 一句話說明這道菜的營養好處
-- macros: 三大營養素，請根據食材份量合理估算（單位：g）
-
-請確保：
-1. 回傳 3 道不同風格的食譜（中式、西式、日式各一道）
-2. 每道食譜都必須包含完整的 adults_menu（parallel 和 remix）
-3. serving_info 必須明確標示份量比例
-4. 回傳的是有效的 JSON 格式，不要包含任何額外的文字或說明`;
-
-    const userPrompt = `請為我設計 3 道不同風格的幼兒食譜（中式、西式、日式各一道）。
+    const userPrompt = language === "en"
+      ? `Please design 3 toddler-friendly recipes (Chinese, Western, Japanese). User ingredients: ${ingredients}
+${babyAge ? `Baby age: ${babyAge}` : ''}
+Output language: English. Follow rules and return JSON only.`
+      : `請為我設計 3 道不同風格的幼兒食譜（中式、西式、日式各一道）。
 
 使用者提供的食材：${ingredients}
 ${babyAge ? `寶寶年齡：${babyAge}` : ''}

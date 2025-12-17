@@ -1,21 +1,77 @@
 "use client";
 
-import { useState } from "react";
-import { Globe, Keyboard, Mic, Camera, ChefHat, Loader2, CheckCircle2, Youtube, Search } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Globe, Keyboard, Mic, Camera, ChefHat, Loader2, CheckCircle2, CheckCircle, Youtube, Search, Calendar, Heart, Clock } from "lucide-react";
+import CollectionModal from "./components/CollectionModal";
+import CompleteMealModal from "./components/CompleteMealModal";
+import HeroSection from "./components/HeroSection";
+import LanguageSwitcher from "./components/LanguageSwitcher";
+import { useLanguage } from "./context/LanguageContext";
 
 type Mode = "strict" | "creative" | "shopping";
 
-type Language = "zh-TW" | "en" | "ja" | "ko";
+interface UserProfile {
+  nickname?: string;
+  birthday?: string;
+  allergies?: string[];
+  dietPreference?: string;
+  cookingTools?: string[];
+  guest?: boolean;
+}
 
 export default function Home() {
+  const router = useRouter();
+  const { language, t } = useLanguage();
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [selectedMode, setSelectedMode] = useState<Mode>("strict");
   const [inputText, setInputText] = useState("");
   const [selectedTool, setSelectedTool] = useState("any");
   const [isLoading, setIsLoading] = useState(false);
   const [showResult, setShowResult] = useState(false);
-  const [isLanguageMenuOpen, setIsLanguageMenuOpen] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState<Language>("zh-TW");
   const [inputMethod, setInputMethod] = useState<"keyboard" | "mic" | "camera">("keyboard");
+  const [isCompleteMealModalOpen, setIsCompleteMealModalOpen] = useState(false);
+  const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
+
+  // 計算年齡
+  const calculateAge = (birthday: string): string => {
+    if (!birthday) return "";
+    const birth = new Date(birthday);
+    const today = new Date();
+    let years = today.getFullYear() - birth.getFullYear();
+    let months = today.getMonth() - birth.getMonth();
+    
+    if (months < 0) {
+      years--;
+      months += 12;
+    }
+    
+    if (years === 0) {
+      return `${months}個月`;
+    } else if (months === 0) {
+      return `${years}歲`;
+    } else {
+      return `${years}歲${months}個月`;
+    }
+  };
+
+  // 路由保護：檢查 userProfile
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const storedProfile = localStorage.getItem('userProfile');
+      if (!storedProfile) {
+        router.push('/onboarding');
+      } else {
+        try {
+          const profile = JSON.parse(storedProfile);
+          setUserProfile(profile);
+        } catch (error) {
+          console.error('解析 userProfile 失敗:', error);
+          router.push('/onboarding');
+        }
+      }
+    }
+  }, [router]);
 
   const modes = [
     {
@@ -38,12 +94,6 @@ export default function Home() {
     },
   ];
 
-  const languages: { code: Language; name: string }[] = [
-    { code: "zh-TW", name: "繁體中文" },
-    { code: "en", name: "English" },
-    { code: "ja", name: "日本語" },
-    { code: "ko", name: "한국어" },
-  ];
 
   const cookingTools = [
     { value: "any", label: "不限工具" },
@@ -55,10 +105,55 @@ export default function Home() {
 
   const currentMode = modes.find((m) => m.id === selectedMode)!;
 
+  interface NutritionInfo {
+    calories: number;
+    tags: string[];
+    benefit: string;
+    macros: {
+      protein: string;
+      carbs: string;
+      fat: string;
+    };
+    micronutrients?: {
+      calcium: string;
+      iron: string;
+      vitamin_c: string;
+    };
+  }
+
+  // 新的資料結構：支援多道食譜
+  interface RecipeItem {
+    style: "中式" | "西式" | "日式";
+    title: string;
+    ingredients: Array<{ name: string; amount: string }> | string[]; // 支援新舊格式
+    nutrition: NutritionInfo;
+    serving_info: string;
+    steps: string[];
+    time: string;
+    adults_menu?: {
+      parallel: {
+        title: string;
+        desc: string;
+        steps: string[];
+      };
+      remix: {
+        title: string;
+        desc: string;
+        steps: string[];
+      };
+    };
+    searchKeywords: string;
+  }
+
+  const [recipesData, setRecipesData] = useState<{ recipes: RecipeItem[] } | null>(null);
+  const [selectedRecipeIndex, setSelectedRecipeIndex] = useState(0);
+  
+  // 向後相容：保留舊的 recipeResult
   const [recipeResult, setRecipeResult] = useState<{
     name: string;
     age: string;
-    nutrition: string[];
+    time?: string;
+    nutrition: NutritionInfo | string[] | string;
     ingredients: string[];
     steps: string[];
     searchKeywords: string;
@@ -80,6 +175,7 @@ export default function Home() {
           ingredients: inputText,
           mode: selectedMode,
           tool: selectedTool,
+          language: language,
         }),
       });
 
@@ -92,11 +188,19 @@ export default function Home() {
         console.error('API 錯誤:', errorMessage);
         alert(`API 錯誤: ${errorMessage}`);
         
+        // 處理 nutrition 資料
+        let errorNutrition: NutritionInfo | string[] | string;
+        if (typeof errorData.nutrition === 'object' && errorData.nutrition !== null && 'calories' in errorData.nutrition) {
+          errorNutrition = errorData.nutrition;
+        } else {
+          errorNutrition = typeof errorData.nutrition === 'string' ? [errorData.nutrition] : [errorData.nutrition || "發生錯誤"];
+        }
+        
         // 即使錯誤也顯示結果（如果有部分資料）
         setRecipeResult({
           name: errorData.title || "無法生成食譜",
           age: "請重新輸入",
-          nutrition: [errorData.nutrition || "發生錯誤"],
+          nutrition: errorNutrition,
           ingredients: errorData.ingredients || [],
           steps: errorData.steps || [],
           searchKeywords: errorData.searchKeywords || "",
@@ -109,28 +213,82 @@ export default function Home() {
       const data = await response.json();
       console.log('收到 API 資料:', data);
 
-      if (data.error) {
-        // 處理錯誤情況（例如：無效食材）
+      // 檢查是否為新格式（recipes 陣列）
+      if (data.recipes && Array.isArray(data.recipes) && data.recipes.length > 0) {
+        // 新格式：多道食譜
+        console.log('收到新格式資料（多道食譜）:', data.recipes.length, '道');
+        setRecipesData(data);
+        setSelectedRecipeIndex(0); // 預設選第一道
+        
+        // 轉換為舊格式以保持相容性（使用第一道食譜）
+        const firstRecipe = data.recipes[0];
+        const ingredientsArray = Array.isArray(firstRecipe.ingredients) 
+          ? firstRecipe.ingredients.map((ing: any) => 
+              typeof ing === 'string' ? ing : `${ing.name} ${ing.amount}`
+            )
+          : [];
+        
+        setRecipeResult({
+          name: firstRecipe.title,
+          age: firstRecipe.serving_info || "適合幼兒",
+          time: firstRecipe.time || "20 分鐘",
+          nutrition: firstRecipe.nutrition,
+          ingredients: ingredientsArray,
+          steps: firstRecipe.steps || [],
+          searchKeywords: firstRecipe.searchKeywords || firstRecipe.title || "",
+        });
+      } else if (data.error) {
+        // 處理錯誤情況
         console.log('API 回傳錯誤:', data.error);
+        let nutritionData: NutritionInfo | string[] | string;
+        if (typeof data.nutrition === 'object' && data.nutrition !== null && 'calories' in data.nutrition) {
+          nutritionData = data.nutrition as NutritionInfo;
+        } else {
+          nutritionData = {
+            calories: 0,
+            tags: [],
+            benefit: data.error,
+            macros: { protein: "0g", carbs: "0g", fat: "0g" }
+          };
+        }
         setRecipeResult({
           name: data.title || "無法生成食譜",
           age: "請重新輸入",
-          nutrition: [data.nutrition || "請輸入可食用的食材"],
+          nutrition: nutritionData,
           ingredients: data.ingredients || [],
           steps: data.steps || [],
           searchKeywords: data.searchKeywords || "",
         });
+        setRecipesData(null);
       } else {
-        // 成功生成食譜
-        console.log('成功生成食譜:', data.title);
+        // 舊格式：單一道食譜（向後相容）
+        console.log('收到舊格式資料（單一道食譜）');
+        let nutritionData: NutritionInfo | string[] | string;
+        if (typeof data.nutrition === 'object' && data.nutrition !== null && 'calories' in data.nutrition) {
+          nutritionData = data.nutrition as NutritionInfo;
+        } else if (Array.isArray(data.nutrition)) {
+          nutritionData = data.nutrition;
+        } else if (typeof data.nutrition === 'string') {
+          nutritionData = [data.nutrition];
+        } else {
+          nutritionData = {
+            calories: 200,
+            tags: ["營養均衡"],
+            benefit: "營養均衡的幼兒餐點",
+            macros: { protein: "10g", carbs: "25g", fat: "8g" }
+          };
+        }
+        
         setRecipeResult({
-          name: data.title,
+          name: data.title || "幼兒食譜",
           age: "適合幼兒",
-          nutrition: data.nutrition ? [data.nutrition] : ["營養均衡"],
+          time: data.time || "20 分鐘",
+          nutrition: nutritionData,
           ingredients: Array.isArray(data.ingredients) ? data.ingredients : [],
           steps: Array.isArray(data.steps) ? data.steps : [],
           searchKeywords: data.searchKeywords || data.title || "",
         });
+        setRecipesData(null);
       }
 
       setIsLoading(false);
@@ -146,7 +304,16 @@ export default function Home() {
       setRecipeResult({
         name: "生成食譜失敗",
         age: "請稍後再試",
-        nutrition: ["請稍後再試"],
+        nutrition: {
+          calories: 0,
+          tags: [],
+          benefit: "請稍後再試",
+          macros: {
+            protein: "0g",
+            carbs: "0g",
+            fat: "0g"
+          }
+        },
         ingredients: [],
         steps: ["請檢查網路連線後重試"],
         searchKeywords: "",
@@ -184,71 +351,38 @@ export default function Home() {
       }}
     >
       {/* 頂部導航列 - 手繪風格 */}
-      <nav className="sticky top-0 z-50 border-b-2 border-dashed border-stone-400/50 backdrop-blur-sm bg-[#FFFBF0]/80">
+      <nav className="sticky top-0 z-50 border-b-2 border-dashed border-moss-green/30 backdrop-blur-sm bg-paper-light/80">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-20">
+          <div className="flex items-center justify-between h-16 sm:h-20">
             {/* 左側：App 名稱與 Logo */}
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-[#C97D60] rounded-2xl">
-                <ChefHat className="w-6 h-6 text-white" />
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+              <div className="p-2 sm:p-2.5 bg-deep-teal rounded-xl sm:rounded-2xl flex-shrink-0">
+                <ChefHat className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
-              <div>
-                <h1 className="text-xl font-bold text-[#5C4B41] tracking-wide font-sans">
+              <div className="min-w-0">
+                <h1 className="text-base sm:text-xl font-bold text-ink-dark tracking-wide font-sans truncate">
                   幼兒食譜魔法師
                 </h1>
-                <p className="text-xs text-[#5C4B41]/70 font-sans">Toddler Recipe Magic</p>
+                <p className="text-xs text-ink-light font-sans hidden sm:block">Toddler Recipe Magic</p>
               </div>
             </div>
 
-            {/* 右側：語言切換選單 */}
-            <div className="relative">
+            {/* 右側：日曆連結與語言切換選單 */}
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
               <button
-                onClick={() => setIsLanguageMenuOpen(!isLanguageMenuOpen)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-2xl border-2 border-dashed border-stone-400/50 hover:border-[#C97D60] transition-all"
+                onClick={() => router.push('/calendar')}
+                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl border-2 border-dashed border-moss-green/30 hover:border-deep-teal transition-all"
                 style={{
                   backgroundImage: `url("${cardTexture}")`,
                   backgroundSize: 'cover',
                 }}
               >
-                <Globe className="w-4 h-4 text-[#5C4B41]" />
-                <span className="text-sm font-medium text-[#5C4B41] tracking-wide">
-                  {languages.find((l) => l.code === selectedLanguage)?.name}
+                <Calendar className="w-4 h-4 text-ink-dark" />
+                <span className="text-xs sm:text-sm font-medium text-ink-dark tracking-wide hidden sm:inline">
+                  飲食日記
                 </span>
               </button>
-
-              {/* 下拉選單 */}
-              {isLanguageMenuOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setIsLanguageMenuOpen(false)}
-                  />
-                  <div 
-                    className="absolute right-0 mt-2 w-44 rounded-2xl border-2 border-dashed border-stone-400/50 z-20 shadow-lg shadow-stone-300/50"
-                    style={{
-                      backgroundImage: `url("${cardTexture}")`,
-                      backgroundSize: 'cover',
-                    }}
-                  >
-                    {languages.map((lang) => (
-                      <button
-                        key={lang.code}
-                        onClick={() => {
-                          setSelectedLanguage(lang.code);
-                          setIsLanguageMenuOpen(false);
-                        }}
-                        className={`w-full text-left px-4 py-3 text-sm tracking-wide transition-colors first:rounded-t-2xl last:rounded-b-2xl ${
-                          selectedLanguage === lang.code
-                            ? "bg-[#F4E4BC]/50 text-[#5C4B41] font-semibold"
-                            : "text-[#5C4B41] hover:bg-stone-50/50"
-                        }`}
-                      >
-                        {lang.name}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+              <LanguageSwitcher />
             </div>
           </div>
         </div>
@@ -256,17 +390,21 @@ export default function Home() {
 
       {/* 主要內容區 */}
       <main className="flex-1 flex flex-col items-center justify-center w-full">
-        <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h2 className="text-4xl sm:text-5xl font-bold mb-4 text-[#5C4B41] tracking-wide font-sans">
-            👶 幼兒食譜魔法師
-          </h2>
-          <p className="text-xl sm:text-2xl text-[#5C4B41] font-medium tracking-wide font-sans">
-            要幫寶寶上什麼菜? 化焦慮為信手捻來!
-          </p>
-        </div>
+        {/* Hero Section */}
+        <HeroSection />
 
+        {/* 用戶資訊顯示 - 移到 Hero Section 之後 */}
+        {userProfile && !userProfile.guest && userProfile.nickname && (
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-4">
+            <div className="max-w-4xl mx-auto text-center">
+              <p className="text-lg sm:text-xl font-medium text-ink-dark tracking-wide font-sans">
+                {t.greeting.replace("[Name]", userProfile.nickname || "")}
+              </p>
+            </div>
+          </div>
+        )}
+
+        <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 模式選擇 Tabs - 卡片紙風格 */}
         <div 
           className="mb-8 p-4 sm:p-5 rounded-[2rem] border-2 border-dashed border-stone-400/50 shadow-lg shadow-stone-300/50"
@@ -275,7 +413,7 @@ export default function Home() {
             backgroundSize: 'cover',
           }}
         >
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {modes.map((mode, index) => (
               <button
                 key={mode.id}
@@ -285,20 +423,20 @@ export default function Home() {
                 }}
                 className={`px-4 py-4 sm:px-5 sm:py-5 rounded-2xl transition-all text-left border-2 ${
                   selectedMode === mode.id
-                    ? "bg-[#C97D60] text-white border-[#8B4513] shadow-md"
-                    : "border-stone-400/50 hover:border-[#C97D60]"
+                    ? "bg-mustard-yellow text-ink-dark border-rust-orange shadow-md"
+                    : "border-moss-green/30 hover:border-mustard-yellow"
                 }`}
                 style={selectedMode !== mode.id ? {
                   backgroundImage: `url("${cardTexture}")`,
                   backgroundSize: 'cover',
                 } : {}}
               >
-                <div className="font-bold text-base sm:text-lg mb-1 tracking-wide text-[#5C4B41] font-sans">
+                <div className="font-bold text-base sm:text-lg mb-1 tracking-wide text-ink-dark font-sans">
                   {mode.title}
                 </div>
                 <div
                   className={`text-xs sm:text-sm ${
-                    selectedMode === mode.id ? "text-white/90" : "text-[#5C4B41]/70"
+                    selectedMode === mode.id ? "text-white/90" : "text-ink-light"
                   }`}
                 >
                   {mode.subtitle}
@@ -321,7 +459,7 @@ export default function Home() {
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               placeholder={currentMode.placeholder}
-              className="w-full h-40 sm:h-48 p-5 rounded-2xl border-2 border-dashed border-stone-400/50 focus:border-[#C97D60] outline-none resize-none text-[#5C4B41] placeholder-stone-400/70 transition-all tracking-wide font-sans"
+              className="w-full h-40 sm:h-48 p-5 rounded-2xl border-2 border-dashed border-moss-green/30 focus:border-deep-teal outline-none resize-none text-ink-dark placeholder-ink-light/50 transition-all tracking-wide font-sans"
               style={{ 
                 backgroundImage: `url("${cardTexture}")`,
                 backgroundSize: 'cover',
@@ -334,8 +472,8 @@ export default function Home() {
                 onClick={handleKeyboardClick}
                 className={`p-2.5 rounded-xl transition-all border-2 ${
                   inputMethod === "keyboard"
-                    ? "bg-[#C97D60] text-white border-[#8B4513]"
-                    : "border-dashed border-stone-400/50 hover:border-[#C97D60]"
+                    ? "bg-deep-teal text-white border-moss-green"
+                    : "border-dashed border-moss-green/30 hover:border-deep-teal"
                 }`}
                 style={inputMethod !== "keyboard" ? {
                   backgroundImage: `url("${cardTexture}")`,
@@ -349,8 +487,8 @@ export default function Home() {
                 onClick={handleMicClick}
                 className={`p-2.5 rounded-xl transition-all border-2 ${
                   inputMethod === "mic"
-                    ? "bg-[#C97D60] text-white border-[#8B4513]"
-                    : "border-dashed border-stone-400/50 hover:border-[#C97D60]"
+                    ? "bg-deep-teal text-white border-moss-green"
+                    : "border-dashed border-moss-green/30 hover:border-deep-teal"
                 }`}
                 style={inputMethod !== "mic" ? {
                   backgroundImage: `url("${cardTexture}")`,
@@ -364,8 +502,8 @@ export default function Home() {
                 onClick={handleCameraClick}
                 className={`p-2.5 rounded-xl transition-all border-2 ${
                   inputMethod === "camera"
-                    ? "bg-[#C97D60] text-white border-[#8B4513]"
-                    : "border-dashed border-stone-400/50 hover:border-[#C97D60]"
+                    ? "bg-deep-teal text-white border-moss-green"
+                    : "border-dashed border-moss-green/30 hover:border-deep-teal"
                 }`}
                 style={inputMethod !== "camera" ? {
                   backgroundImage: `url("${cardTexture}")`,
@@ -380,13 +518,13 @@ export default function Home() {
 
           {/* 其他選項：烹飪工具 */}
           <div className="mt-6">
-            <label className="block text-base font-semibold text-[#5C4B41] mb-3 tracking-wide">
-              烹飪工具 <span className="text-[#5C4B41]/60 text-sm font-normal">(選填)</span>
+            <label className="block text-base font-semibold text-ink-dark mb-3 tracking-wide">
+              烹飪工具 <span className="text-ink-light text-sm font-normal">(選填)</span>
             </label>
             <select
               value={selectedTool}
               onChange={(e) => setSelectedTool(e.target.value)}
-              className="w-full px-5 py-4 rounded-2xl border-2 border-dashed border-stone-400/50 focus:border-[#C97D60] outline-none text-[#5C4B41] transition-all tracking-wide font-sans"
+              className="w-full px-5 py-4 rounded-2xl border-2 border-dashed border-moss-green/30 focus:border-deep-teal outline-none text-ink-dark transition-all tracking-wide font-sans"
               style={{ 
                 backgroundImage: `url("${cardTexture}")`,
                 backgroundSize: 'cover',
@@ -407,7 +545,7 @@ export default function Home() {
           disabled={isLoading}
           className="w-full py-5 sm:py-6 text-white rounded-[2rem] font-bold text-lg sm:text-xl border-4 border-dashed border-orange-300 hover:scale-105 active:scale-100 transition-transform disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-3 mb-8 tracking-wide shadow-lg shadow-stone-300/50 font-sans"
           style={{ 
-            backgroundColor: '#C97D60',
+            backgroundColor: 'var(--color-deep-teal)',
             borderRadius: '1.5rem 0.8rem 1.5rem 0.8rem', // 不規則圓角
           }}
         >
@@ -427,45 +565,106 @@ export default function Home() {
         {/* 結果顯示區 - 手寫筆記風格 */}
         {showResult && recipeResult && (
           <div 
-            className="p-6 sm:p-8 rounded-[2rem] border-2 border-dashed border-stone-400/50 animate-in fade-in slide-in-from-bottom-4 shadow-lg shadow-stone-300/50"
+            className="p-6 sm:p-8 rounded-[2rem] border-2 border-dashed border-moss-green/30 animate-in fade-in slide-in-from-bottom-4 shadow-lg shadow-moss-green/20"
             style={{
               backgroundImage: `url("${cardTexture}")`,
               backgroundSize: 'cover',
             }}
           >
-            <div className="flex items-start gap-4 mb-6">
-              <div className="p-3 bg-[#9CAF88] rounded-2xl border-2 border-[#7A9471]">
-                <CheckCircle2 className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-2xl sm:text-3xl font-bold text-[#5C4B41] mb-3 tracking-wide font-sans">
-                  {recipeResult.name}
-                </h3>
-                <div className="flex flex-wrap items-center gap-3 mb-4">
-                  <span className="px-4 py-1.5 bg-[#F4E4BC] text-[#5C4B41] rounded-full text-sm font-semibold border-2 border-dashed border-[#E6D4A8] tracking-wide">
-                    {recipeResult.age}
-                  </span>
-                  {recipeResult.nutrition.map((nutri, idx) => (
-                    <span
+            {/* 風格選擇器（如果有多道食譜） */}
+            {recipesData && recipesData.recipes.length > 1 && (
+              <div className="mb-6">
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {recipesData.recipes.map((recipe, idx) => (
+                    <button
                       key={idx}
-                      className="px-4 py-1.5 bg-[#E8F5E9] text-[#5C4B41] rounded-full text-sm font-semibold border-2 border-dashed border-[#C8E6C9] tracking-wide"
+                      onClick={() => {
+                        setSelectedRecipeIndex(idx);
+                        const selectedRecipe = recipesData.recipes[idx];
+                        const ingredientsArray = Array.isArray(selectedRecipe.ingredients)
+                          ? selectedRecipe.ingredients.map((ing: any) =>
+                              typeof ing === 'string' ? ing : `${ing.name} ${ing.amount}`
+                            )
+                          : [];
+                        setRecipeResult({
+                          name: selectedRecipe.title,
+                          age: selectedRecipe.serving_info || "適合幼兒",
+                          time: selectedRecipe.time || "20 分鐘",
+                          nutrition: selectedRecipe.nutrition,
+                          ingredients: ingredientsArray,
+                          steps: selectedRecipe.steps || [],
+                          searchKeywords: selectedRecipe.searchKeywords || selectedRecipe.title || "",
+                        });
+                      }}
+                      className={`px-4 py-2 rounded-xl font-semibold transition-all tracking-wide whitespace-nowrap ${
+                        selectedRecipeIndex === idx
+                          ? 'bg-deep-teal text-white border-2 border-deep-teal'
+                          : 'bg-white text-ink-dark border-2 border-dashed border-moss-green/30 hover:border-deep-teal'
+                      }`}
+                      style={selectedRecipeIndex !== idx ? {
+                        backgroundImage: `url("${cardTexture}")`,
+                        backgroundSize: 'cover',
+                      } : {}}
                     >
-                      {nutri}
-                    </span>
+                      {recipe.style} {recipe.title}
+                    </button>
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* 菜名 + Google 圖片搜尋 */}
+            <div className="flex items-start justify-between gap-4 mb-6">
+              <div className="flex-1">
+                {recipesData && recipesData.recipes[selectedRecipeIndex] && (
+                  <div className="mb-2">
+                    <span className="px-3 py-1 bg-mustard-yellow/30 text-moss-green rounded-full text-sm font-semibold">
+                      {recipesData.recipes[selectedRecipeIndex].style}
+                    </span>
+                  </div>
+                )}
+                <h3 className="text-2xl sm:text-3xl font-bold text-ink-dark tracking-wide font-sans">
+                  {recipeResult.name}
+                </h3>
+                {recipesData && recipesData.recipes[selectedRecipeIndex]?.serving_info && (
+                  <p className="text-sm text-ink-light mt-1">
+                    {recipesData.recipes[selectedRecipeIndex].serving_info}
+                  </p>
+                )}
+              </div>
+              {recipeResult.searchKeywords && (
+                <a
+                  href={`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(recipeResult.searchKeywords)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-all shadow-lg shadow-blue-300/50 hover:scale-105 active:scale-100 border-2 border-blue-700 tracking-wide flex items-center gap-2"
+                >
+                  <Search className="w-4 h-4" />
+                  <span className="text-sm">圖片</span>
+                </a>
+              )}
             </div>
+
+            {/* 準備時間 */}
+            {recipeResult.time && (
+              <div className="mb-6 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-ink-dark" />
+                <span className="text-lg text-ink-dark font-semibold tracking-wide font-sans">
+                  ⏱️ {recipeResult.time}
+                </span>
+              </div>
+            )}
+
 
             {/* 食材清單 */}
             <div className="mb-8">
-              <h4 className="text-xl font-bold text-[#5C4B41] mb-4 tracking-wide font-sans">
+              <h4 className="text-xl font-bold text-ink-dark mb-4 tracking-wide font-sans">
                 食材清單
               </h4>
               <ul className="space-y-3 pl-2">
                 {recipeResult.ingredients.map((ingredient, idx) => (
-                  <li key={idx} className="flex items-center gap-3 text-[#5C4B41] text-base tracking-wide">
-                    <div className="w-2 h-2 bg-[#C97D60] rounded-full border border-[#8B4513]" />
+                  <li key={idx} className="flex items-center gap-3 text-ink-dark text-base tracking-wide">
+                    <div className="w-2 h-2 bg-deep-teal rounded-full border border-moss-green" />
                     <span className="font-sans">{ingredient}</span>
                   </li>
                 ))}
@@ -474,16 +673,16 @@ export default function Home() {
 
             {/* 料理步驟 */}
             <div>
-              <h4 className="text-xl font-bold text-[#5C4B41] mb-4 tracking-wide font-sans">
+              <h4 className="text-xl font-bold text-ink-dark mb-4 tracking-wide font-sans">
                 料理步驟
               </h4>
               <ol className="space-y-4 pl-2">
                 {recipeResult.steps.map((step, idx) => (
                   <li key={idx} className="flex gap-4">
-                    <div className="flex-shrink-0 w-8 h-8 bg-[#C97D60] text-white rounded-full flex items-center justify-center font-bold text-base border-2 border-[#8B4513]">
+                    <div className="flex-shrink-0 w-8 h-8 bg-deep-teal text-white rounded-full flex items-center justify-center font-bold text-base border-2 border-moss-green">
                       {idx + 1}
                     </div>
-                    <p className="text-[#5C4B41] leading-relaxed pt-1 text-base tracking-wide font-sans">
+                    <p className="text-ink-dark leading-relaxed pt-1 text-base tracking-wide font-sans">
                       {step}
                     </p>
                   </li>
@@ -491,34 +690,204 @@ export default function Home() {
               </ol>
             </div>
 
-            {/* 外部連結按鈕 */}
-            {recipeResult.searchKeywords && (
-              <div className="mt-8 pt-6 border-t-2 border-dashed border-stone-400/50">
-                <div className="flex flex-col sm:flex-row gap-4">
-                  {/* YouTube 按鈕 */}
-                  <a
-                    href={`https://www.youtube.com/results?search_query=${encodeURIComponent(recipeResult.searchKeywords)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 px-6 py-4 bg-red-600 hover:bg-red-700 text-white rounded-2xl font-semibold transition-all shadow-lg shadow-red-300/50 hover:scale-105 active:scale-100 border-2 border-red-700 tracking-wide"
-                  >
-                    <Youtube className="w-5 h-5" />
-                    <span>📺 看影片教學</span>
-                  </a>
+            {/* 營養資訊卡片 */}
+            {typeof recipeResult.nutrition === 'object' && recipeResult.nutrition !== null && 'calories' in recipeResult.nutrition && (
+              <div 
+                className="mt-10 mb-8 p-6 rounded-2xl border-2 border-dashed border-moss-green/30 shadow-lg shadow-moss-green/20"
+                style={{
+                  backgroundImage: `url("${cardTexture}")`,
+                  backgroundSize: 'cover',
+                }}
+              >
+                <h4 className="text-xl font-bold text-ink-dark mb-4 tracking-wide font-sans">
+                  營養資訊
+                </h4>
+                
+                <div className="space-y-4">
+                  {/* 熱量 */}
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">🔥</span>
+                    <div>
+                      <div className="text-sm text-ink-light">熱量</div>
+                      <div className="text-lg font-bold text-ink-dark font-sans">
+                        {recipeResult.nutrition.calories} kcal
+                      </div>
+                    </div>
+                  </div>
 
-                  {/* Google 搜尋按鈕 */}
-                  <a
-                    href={`https://www.google.com/search?q=${encodeURIComponent(recipeResult.searchKeywords)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 px-6 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-semibold transition-all shadow-lg shadow-blue-300/50 hover:scale-105 active:scale-100 border-2 border-blue-700 tracking-wide"
-                  >
-                    <Search className="w-5 h-5" />
-                    <span>🔍 Google 更多做法</span>
-                  </a>
+                  {/* 營養標籤 */}
+                  {recipeResult.nutrition.tags && recipeResult.nutrition.tags.length > 0 && (
+                    <div className="flex items-center gap-3">
+                      <span className="text-2xl">🏷️</span>
+                      <div className="flex-1">
+                        <div className="text-sm text-ink-light mb-2">營養標籤</div>
+                        <div className="flex flex-wrap gap-2">
+                          {recipeResult.nutrition.tags.map((tag, idx) => (
+                            <span
+                              key={idx}
+                              className="px-3 py-1 bg-sage-green/20 text-moss-green rounded-full text-sm font-semibold border-2 border-sage-green/30 tracking-wide"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 營養師小語 */}
+                  {recipeResult.nutrition.benefit && (
+                    <div className="flex items-start gap-3 pt-2 border-t-2 border-dashed border-moss-green/30">
+                      <span className="text-2xl">💡</span>
+                      <div className="flex-1">
+                        <div className="text-sm text-ink-light mb-1">營養師小語</div>
+                        <div className="text-base text-ink-dark leading-relaxed font-sans">
+                          {recipeResult.nutrition.benefit}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 微量營養素 */}
+                  {recipeResult.nutrition.micronutrients && (
+                    <div className="flex items-start gap-3 pt-2 border-t-2 border-dashed border-moss-green/30">
+                      <span className="text-2xl">🔬</span>
+                      <div className="flex-1">
+                        <div className="text-sm text-ink-light mb-2">微量營養素</div>
+                        <div className="flex flex-wrap gap-3 text-xs text-ink-light font-sans">
+                          {recipeResult.nutrition.micronutrients.calcium && (
+                            <span>鈣：{recipeResult.nutrition.micronutrients.calcium}</span>
+                          )}
+                          {recipeResult.nutrition.micronutrients.iron && (
+                            <span>鐵：{recipeResult.nutrition.micronutrients.iron}</span>
+                          )}
+                          {recipeResult.nutrition.micronutrients.vitamin_c && (
+                            <span>維生素C：{recipeResult.nutrition.micronutrients.vitamin_c}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
+
+            {/* 同場加映：大人吃什麼？ */}
+            {recipesData && recipesData.recipes[selectedRecipeIndex]?.adults_menu && (
+              <div className="mt-10 mb-8">
+                <h4 className="text-xl font-bold text-ink-dark mb-6 tracking-wide font-sans flex items-center gap-2">
+                  <span className="text-2xl">👩‍🍳</span>
+                  同場加映：大人吃什麼？
+                </h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Option 1: 平行料理 */}
+                  {recipesData.recipes[selectedRecipeIndex].adults_menu.parallel && (
+                    <div 
+                      className="p-5 rounded-2xl border-2 border-dashed border-moss-green/30 bg-paper-warm shadow-lg shadow-moss-green/20"
+                      style={{
+                        backgroundImage: `url("${cardTexture}")`,
+                        backgroundSize: 'cover',
+                      }}
+                    >
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-2xl">🌶️</span>
+                        <h5 className="text-lg font-bold text-ink-dark tracking-wide font-sans">
+                          {recipesData.recipes[selectedRecipeIndex].adults_menu.parallel.title}
+                        </h5>
+                      </div>
+                      <p className="text-sm text-ink-light mb-4 leading-relaxed font-sans">
+                        {recipesData.recipes[selectedRecipeIndex].adults_menu.parallel.desc}
+                      </p>
+                      <div className="space-y-2">
+                        <div className="text-xs font-semibold text-ink-dark mb-2">料理步驟：</div>
+                        {recipesData.recipes[selectedRecipeIndex].adults_menu.parallel.steps.map((step, idx) => (
+                          <div key={idx} className="flex gap-2 text-sm text-ink-dark">
+                            <span className="text-deep-teal font-bold">{idx + 1}.</span>
+                            <span className="font-sans">{step}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Option 2: 美味加工 */}
+                  {recipesData.recipes[selectedRecipeIndex].adults_menu.remix && (
+                    <div 
+                      className="p-5 rounded-2xl border-2 border-dashed border-moss-green/30 bg-paper-warm shadow-lg shadow-moss-green/20"
+                      style={{
+                        backgroundImage: `url("${cardTexture}")`,
+                        backgroundSize: 'cover',
+                      }}
+                    >
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="text-2xl">🍳</span>
+                        <h5 className="text-lg font-bold text-ink-dark tracking-wide font-sans">
+                          {recipesData.recipes[selectedRecipeIndex].adults_menu.remix.title}
+                        </h5>
+                      </div>
+                      <p className="text-sm text-ink-light mb-4 leading-relaxed font-sans">
+                        {recipesData.recipes[selectedRecipeIndex].adults_menu.remix.desc}
+                      </p>
+                      <div className="space-y-2">
+                        <div className="text-xs font-semibold text-ink-dark mb-2">料理步驟：</div>
+                        {recipesData.recipes[selectedRecipeIndex].adults_menu.remix.steps.map((step, idx) => (
+                          <div key={idx} className="flex gap-2 text-sm text-ink-dark">
+                            <span className="text-deep-teal font-bold">{idx + 1}.</span>
+                            <span className="font-sans">{step}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 功能按鈕區塊 - 2x2 Grid 佈局 */}
+            <div className="mt-8 pt-6 border-t-2 border-dashed border-moss-green/30">
+              <div className="grid grid-cols-2 gap-2 md:gap-4">
+                {/* 左上：收藏 */}
+                <button
+                  onClick={() => setIsCollectionModalOpen(true)}
+                  className="flex items-center justify-center px-3 md:px-4 py-3 md:py-4 h-auto bg-sage-green hover:opacity-90 active:scale-95 text-white rounded-2xl font-semibold transition-all tracking-wide"
+                >
+                  <Heart className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2" />
+                  <span className="text-xs sm:text-sm md:text-base whitespace-nowrap">{t.buttons.save}</span>
+                </button>
+
+                {/* 右上：我煮了這個 */}
+                <button
+                  onClick={() => setIsCompleteMealModalOpen(true)}
+                  className="flex items-center justify-center px-3 md:px-4 py-3 md:py-4 h-auto bg-sage-green hover:opacity-90 active:scale-95 text-white rounded-2xl font-semibold transition-all tracking-wide"
+                >
+                  <CheckCircle className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2" />
+                  <span className="text-xs sm:text-sm md:text-base whitespace-nowrap">{t.buttons.cooked}</span>
+                </button>
+
+                {/* 左下：YouTube */}
+                <a
+                  href={`https://www.youtube.com/results?search_query=${encodeURIComponent(recipeResult.searchKeywords || recipeResult.name || "幼兒食譜")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center px-3 md:px-4 py-3 md:py-4 h-auto bg-sage-green hover:opacity-90 active:scale-95 text-white rounded-2xl font-semibold transition-all tracking-wide"
+                >
+                  <Youtube className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2" />
+                  <span className="text-xs sm:text-sm md:text-base whitespace-nowrap">{t.buttons.youtube}</span>
+                </a>
+
+                {/* 右下：Google */}
+                <a
+                  href={`https://www.google.com/search?q=${encodeURIComponent(recipeResult.searchKeywords || recipeResult.name || "幼兒食譜")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center px-3 md:px-4 py-3 md:py-4 h-auto bg-sage-green hover:opacity-90 active:scale-95 text-white rounded-2xl font-semibold transition-all tracking-wide"
+                >
+                  <Search className="w-4 h-4 md:w-5 md:h-5 mr-1.5 md:mr-2" />
+                  <span className="text-xs sm:text-sm md:text-base whitespace-nowrap">{t.buttons.google}</span>
+                </a>
+              </div>
+            </div>
           </div>
         )}
         </div>
@@ -526,10 +895,37 @@ export default function Home() {
 
       {/* Footer */}
       <footer className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-12 border-t-2 border-dashed border-stone-400/50">
-        <p className="text-center text-sm text-[#5C4B41]/70 tracking-wide">
+        <p className="text-center text-sm text-ink-light tracking-wide">
           © 2024 幼兒食譜魔法師 - 讓每一餐都充滿愛與營養
         </p>
       </footer>
+
+      {/* Complete Meal Modal */}
+      {recipeResult && (
+        <CompleteMealModal
+          isOpen={isCompleteMealModalOpen}
+          onClose={() => setIsCompleteMealModalOpen(false)}
+          recipeTitle={recipeResult.name}
+          nutrition={recipeResult.nutrition}
+          isManual={false}
+        />
+      )}
+
+      {/* Collection Modal */}
+      {recipeResult && (
+        <CollectionModal
+          isOpen={isCollectionModalOpen}
+          onClose={() => setIsCollectionModalOpen(false)}
+          recipeData={{
+            title: recipeResult.name,
+            ingredients: recipeResult.ingredients,
+            steps: recipeResult.steps,
+            time: recipeResult.time,
+            nutrition: recipeResult.nutrition,
+            searchKeywords: recipeResult.searchKeywords,
+          }}
+        />
+      )}
     </div>
   );
 }

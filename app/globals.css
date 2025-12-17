@@ -1,26 +1,109 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #Fdfbf7;
+  --foreground: #2F2F2F;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-zen), sans-serif;
-}
+  --font-cute: var(--font-fredoka), var(--font-zen), 'rounded-mplus-1c', sans-serif;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* 背景紙張色 (Paper) */
+  --color-paper-light: #Fdfbf7;
+  --color-paper-warm: #F2Ece4;
+  --color-paper-warm-cream: #F9F6E8;
+
+  /* 大地綠色系 (Nature) */
+  --color-moss-green: #6B705C;
+  --color-sage-green: #A5A58D;
+  --color-deep-teal: #3E5C64;
+
+  /* 陶土暖色系 (Clay) */
+  --color-clay-red: #A65D57;
+  --color-terracotta: #C67D63;
+  --color-rust-orange: #D48C4E;
+
+  /* 陽光色系 (Sun) */
+  --color-mustard-yellow: #E6B874;
+  --color-corn-yellow: #F4D35E;
+
+  /* 筆墨色 (Ink) */
+  --color-ink-dark: #2F2F2F;
+  --color-ink-light: #5C5C5C;
 }
 
 body {
-  background: var(--background);
-  color: #4A3B32;
-  font-family: var(--font-zen), sans-serif;
+  background: var(--color-paper-warm-cream);
+  color: var(--color-ink-dark);
+  font-family: var(--font-fredoka), var(--font-zen), sans-serif;
   letter-spacing: 0.01em;
+}
+
+/* 漂浮動畫 */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* 滑桿觸控優化 */
+input[type="range"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: pan-x;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: var(--color-deep-teal);
+  cursor: pointer;
+  margin-top: -0.5rem;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: var(--color-deep-teal);
+  cursor: pointer;
+  border: none;
+}
+
+/* 手機版增加觸控區域 */
+@media (max-width: 640px) {
+  input[type="range"] {
+    padding: 0.5rem 0;
+  }
+  
+  input[type="range"]::-webkit-slider-thumb {
+    width: 1.5rem;
+    height: 1.5rem;
+    margin-top: -0.625rem;
+  }
+  
+  input[type="range"]::-moz-range-thumb {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+  
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 0.5rem;
+  }
+  
+  input[type="range"]::-moz-range-track {
+    height: 0.5rem;
+  }
 }

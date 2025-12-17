@@ -1,11 +1,20 @@
 import type { Metadata } from "next";
-import { Zen_Maru_Gothic } from "next/font/google";
+import { Fredoka, Zen_Maru_Gothic } from "next/font/google";
 import "./globals.css";
+import { LanguageProvider } from "./context/LanguageContext";
+
+const fredoka = Fredoka({
+  subsets: ["latin"],
+  variable: "--font-fredoka",
+  display: "swap",
+});
 
 const zen = Zen_Maru_Gothic({
-  variable: "--font-zen",
+  weight: ["400", "500", "700"],
   subsets: ["latin"],
-  weight: ["300", "400", "500", "700", "900"],
+  variable: "--font-zen",
+  display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {
@@ -19,11 +28,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-TW">
+    <html lang="zh-TW" className={`${fredoka.variable} ${zen.variable}`}>
       <body
-        className={`${zen.variable} antialiased text-[#4A3B32]`}
+        className="antialiased text-[#4A3B32]"
       >
-        {children}
+        <LanguageProvider>
+          {children}
+        </LanguageProvider>
       </body>
     </html>
   );

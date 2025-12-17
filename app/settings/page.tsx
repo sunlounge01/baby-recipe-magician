@@ -27,11 +27,13 @@ export default function SettingsPage() {
   const [newBabyName, setNewBabyName] = useState("");
   const [newBabyMonths, setNewBabyMonths] = useState<number | null>(null);
   const [isSavingBaby, setIsSavingBaby] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const stored = localStorage.getItem("userProfile");
     const storedEmail = localStorage.getItem("userEmail") || "";
+    const storedUserId = localStorage.getItem("userId") || "";
     if (stored) {
       try {
         const parsed: UserProfile = JSON.parse(stored);
@@ -44,15 +46,36 @@ export default function SettingsPage() {
       }
     }
     if (storedEmail) setEmail(storedEmail);
+    if (storedUserId) setUserId(storedUserId);
   }, []);
+
+  const getUserIdByEmail = async (targetEmail: string) => {
+    if (!supabase || !targetEmail) return null;
+    const { data, error } = await supabase
+      .from("users")
+      .select("id")
+      .eq("email", targetEmail)
+      .single();
+    if (error) return null;
+    return data?.id as string;
+  };
 
   useEffect(() => {
     const fetchBabies = async () => {
       if (!email || !supabase) return;
+      let uid = userId;
+      if (!uid) {
+        uid = await getUserIdByEmail(email);
+        if (uid) {
+          setUserId(uid);
+          if (typeof window !== "undefined") localStorage.setItem("userId", uid);
+        }
+      }
+      if (!uid) return;
       const { data, error } = await supabase
         .from("babies")
         .select("*")
-        .eq("user_email", email)
+        .eq("user_id", uid)
         .order("id", { ascending: true });
       if (!error && data) {
         setBabies(data);
@@ -91,10 +114,21 @@ export default function SettingsPage() {
     setIsSavingBaby(true);
     try {
       if (supabase) {
-        await supabase.from("profiles").upsert({ email });
+        let uid = userId;
+        if (!uid) {
+          const upsertRes = await supabase
+            .from("users")
+            .upsert({ email }, { onConflict: "email" })
+            .select("id")
+            .single();
+          if (upsertRes.error) throw upsertRes.error;
+          uid = upsertRes.data?.id as string;
+          setUserId(uid);
+          localStorage.setItem("userId", uid);
+        }
         const { data, error } = await supabase
           .from("babies")
-          .insert({ user_email: email, name: newBabyName, months_old: newBabyMonths })
+          .insert({ user_id: uid, name: newBabyName, months_old: newBabyMonths })
           .select();
         if (error) throw error;
         const newList = [...babies, ...(data || [])];
@@ -146,6 +180,9 @@ export default function SettingsPage() {
                 placeholder="you@example.com"
                 className="w-full px-4 py-3 rounded-2xl border-2 border-dashed border-moss-green/30 focus:border-deep-teal outline-none transition-all"
               />
+              <p className="mt-2 text-sm text-ink-light">
+                我們重視您的隱私，您的 Email 僅用於同步寶寶資料與發送營養建議。
+              </p>
             </div>
             <div>
               <label className="block text-base font-semibold text-ink-dark mb-2">

@@ -29,6 +29,7 @@ export default function Home() {
   const tr = (zh: string, en: string) => (language === "en" ? en : zh);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [userEmail, setUserEmail] = useState("");
+  const [userId, setUserId] = useState<string | null>(null);
   const [babies, setBabies] = useState<Array<{ id: number; name: string; months_old: number | null }>>([]);
   const [selectedBabyIds, setSelectedBabyIds] = useState<number[]>([]);
   const [selectedMode, setSelectedMode] = useState<Mode>("strict");
@@ -112,10 +113,30 @@ export default function Home() {
 
   const loadBabiesFromSupabase = async (email: string) => {
     if (!supabase || !email) return;
+    const getUserIdByEmail = async () => {
+      const { data, error } = await supabase
+        .from("users")
+        .select("id")
+        .eq("email", email)
+        .single();
+      if (error) return null;
+      return data?.id as string;
+    };
+
+    let uid = userId;
+    if (!uid) {
+      uid = await getUserIdByEmail();
+      if (uid) {
+        setUserId(uid);
+        if (typeof window !== "undefined") localStorage.setItem("userId", uid);
+      }
+    }
+    if (!uid) return;
+
     const { data, error } = await supabase
       .from("babies")
       .select("*")
-      .eq("user_email", email)
+      .eq("user_id", uid)
       .order("id", { ascending: true });
     if (!error && data) {
       setBabies(data);
@@ -169,6 +190,7 @@ export default function Home() {
     if (typeof window !== 'undefined') {
       const storedProfile = localStorage.getItem('userProfile');
       const storedEmail = localStorage.getItem('userEmail');
+      const storedUserId = localStorage.getItem('userId');
       const storedBabies = localStorage.getItem('babies');
 
       if (!storedProfile && !storedEmail) {
@@ -187,6 +209,9 @@ export default function Home() {
       }
       if (storedEmail) {
         setUserEmail(storedEmail);
+      }
+      if (storedUserId) {
+        setUserId(storedUserId);
       }
       if (storedBabies) {
         try {

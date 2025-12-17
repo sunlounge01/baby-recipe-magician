@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { ChefHat, ArrowRight, Check } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
+console.log('當前連線的 Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+
 interface FormData {
   email: string;
   nickname: string;
@@ -50,12 +52,22 @@ export default function OnboardingPage() {
     cookingTools: [],
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // 連線網址測試：載入即提示
+  useEffect(() => {
+    alert('連線網址測試：' + (process.env.NEXT_PUBLIC_SUPABASE_URL || '找不到網址'));
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const storedEmail = localStorage.getItem("userEmail") || "";
+    const storedUserId = localStorage.getItem("userId") || "";
     if (storedEmail) {
       setFormData((prev) => ({ ...prev, email: storedEmail }));
+    }
+    if (storedUserId) {
+      setUserId(storedUserId);
     }
   }, []);
 
@@ -98,7 +110,27 @@ export default function OnboardingPage() {
     return Math.max(months, 0);
   };
 
+  const getOrCreateUser = async (email: string) => {
+    if (!supabase) return null;
+    const { data, error, status } = await supabase
+      .from("users")
+      .upsert({ email }, { onConflict: "email" })
+      .select("id")
+      .single();
+    console.log("Supabase Status (users upsert):", status);
+    console.log("Supabase Data (users upsert):", data);
+    if (error) {
+      console.error("Supabase Error (users upsert):", error);
+      alert(`發送狀態：${status}，錯誤：${error.message || error}`);
+      throw error;
+    }
+    alert(`發送狀態：${status}，請檢查瀏覽器 Console 看完整數據。`);
+    return data?.id as string;
+  };
+
   const handleComplete = async () => {
+    alert('按鈕已點擊，準備傳送到 Supabase');
+    console.log('準備提交資料到 Supabase...');
     if (!formData.email || !formData.nickname || !formData.birthday) {
       alert("請填寫 Email、寶寶暱稱與生日");
       return;
@@ -107,13 +139,14 @@ export default function OnboardingPage() {
     const monthsOld = getMonthsOld(formData.birthday);
 
     try {
-      // 同步到 Supabase
+      let newUserId = userId;
       if (supabase) {
-        await supabase.from("profiles").upsert({ email: formData.email });
+        newUserId = await getOrCreateUser(formData.email);
+        if (!newUserId) throw new Error("user 建立失敗");
         const { data: babyRows, error: babyErr } = await supabase
           .from("babies")
           .insert({
-            user_email: formData.email,
+            user_id: newUserId,
             name: formData.nickname,
             months_old: monthsOld,
           })
@@ -123,6 +156,7 @@ export default function OnboardingPage() {
         const savedBaby = babyRows?.[0];
         if (typeof window !== "undefined") {
           localStorage.setItem("userEmail", formData.email);
+          localStorage.setItem("userId", newUserId);
           localStorage.setItem(
             "babies",
             JSON.stringify([savedBaby || { id: Date.now(), name: formData.nickname, months_old: monthsOld }])
@@ -156,7 +190,7 @@ export default function OnboardingPage() {
       router.push('/');
     } catch (error) {
       console.error("Onboarding 儲存失敗:", error);
-      alert("哎呀，魔法失手，請稍後再試！");
+      alert('錯誤詳情：' + JSON.stringify(error));
     } finally {
       setIsSaving(false);
     }
@@ -231,6 +265,9 @@ export default function OnboardingPage() {
               backgroundSize: 'cover',
             }}
           />
+          <p className="mt-2 text-sm text-[#5C4B41]/70">
+            我們重視您的隱私，您的 Email 僅用於同步寶寶資料與發送營養建議。
+          </p>
         </div>
         <div>
           <label className="block text-lg font-semibold text-[#5C4B41] mb-3 tracking-wide">

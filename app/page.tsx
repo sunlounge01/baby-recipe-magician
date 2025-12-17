@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Globe, Keyboard, Mic, Camera, ChefHat, Loader2, CheckCircle2, CheckCircle, Youtube, Search, Calendar, Heart, Clock } from "lucide-react";
+import { Globe, Keyboard, Mic, Camera, ChefHat, Loader2, CheckCircle2, CheckCircle, Youtube, Search, Calendar, Heart, Clock, Settings as SettingsIcon } from "lucide-react";
 import CollectionModal from "./components/CollectionModal";
 import CompleteMealModal from "./components/CompleteMealModal";
 import HeroSection from "./components/HeroSection";
@@ -35,6 +35,9 @@ export default function Home() {
   const [isCompleteMealModalOpen, setIsCompleteMealModalOpen] = useState(false);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settingsName, setSettingsName] = useState("");
+  const [settingsBirthday, setSettingsBirthday] = useState("");
 
   const uiText = {
     diary: tr("飲食日記", "Diary"),
@@ -50,10 +53,10 @@ export default function Home() {
     stepsLabel: tr("料理步驟：", "Steps:"),
     imageBtn: tr("圖片", "Images"),
     defaultSearch: tr("幼兒食譜", "toddler recipe"),
-    errApi: tr("API 錯誤", "API error"),
-    errGenerate: tr("生成食譜失敗", "Generate failed"),
-    retryLater: tr("請稍後再試", "Please try later"),
-    netRetry: tr("請檢查網路連線後重試", "Check network connection and retry"),
+    errApi: tr("哎呀，小魔法累了 (API)！", "Oops, magic tired (API)!"),
+    errGenerate: tr("魔法失手，再試一次！", "Spell fizzled, try again!"),
+    retryLater: tr("再等等，魔法師補充能量中", "Give me a sec to recharge magic"),
+    netRetry: tr("檢查網路後再試一次唷", "Check your internet and retry"),
     ageFallback: tr("適合幼兒", "Toddler-friendly"),
   };
 
@@ -208,6 +211,13 @@ export default function Home() {
           mode: selectedMode,
           tool: selectedTool,
           language: language,
+          age: userProfile?.birthday ? (() => {
+            const birth = new Date(userProfile.birthday as string);
+            const today = new Date();
+            let months = (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth());
+            if (today.getDate() < birth.getDate()) months -= 1;
+            return Math.max(months, 0);
+          })() : undefined,
         }),
       });
 
@@ -401,6 +411,19 @@ export default function Home() {
 
             {/* 右側：日曆連結與語言切換選單 */}
             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              <button
+                onClick={() => router.push('/settings')}
+                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl border-2 border-dashed border-moss-green/30 hover:border-deep-teal transition-all"
+                style={{
+                  backgroundImage: `url("${cardTexture}")`,
+                  backgroundSize: 'cover',
+                }}
+              >
+                <SettingsIcon className="w-4 h-4 text-ink-dark" />
+                <span className="text-xs sm:text-sm font-medium text-ink-dark tracking-wide hidden sm:inline">
+                  {t.buttons.settings || tr("設定", "Settings")}
+                </span>
+              </button>
               <button
                 onClick={() => router.push('/calendar')}
                 className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl border-2 border-dashed border-moss-green/30 hover:border-deep-teal transition-all"
@@ -606,7 +629,7 @@ export default function Home() {
             {/* 風格選擇器（如果有多道食譜） */}
             {recipesData && recipesData.recipes.length > 1 && (
               <div className="mb-6">
-                <div className="flex gap-2 overflow-x-auto pb-2">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pb-2">
                   {recipesData.recipes.map((recipe, idx) => (
                     <button
                       key={idx}
@@ -933,7 +956,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-12 border-t-2 border-dashed border-stone-400/50">
         <p className="text-center text-sm text-ink-light tracking-wide">
-          {tr("© 2024 幼兒食譜魔法師 - 讓每一餐都充滿愛與營養", "© 2024 Toddler Recipe Magician - Every meal with love and nutrition")}
+          {tr("寶寶食譜魔法師，以從容不迫的姿態將營養與美味優雅上菜", "Toddler Recipe Magician serves nutrition and flavor with calm elegance.")}
         </p>
       </footer>
 

@@ -60,8 +60,39 @@ interface RecipeResponse {
 // ============================================
 // Mock Data 生成函數
 // ============================================
-function getMockRecipeData(mode: string, userIngredients: string): RecipeResponse {
+function getServingInfoByAge(ageInMonths?: number): string {
+  if (typeof ageInMonths !== "number" || isNaN(ageInMonths)) {
+    return "約 1 碗 (相當於 1/3 成人份)";
+  }
+  if (ageInMonths < 24) return "約 1 碗 (相當於 1/3 成人份)";
+  if (ageInMonths < 36) return "約 1 碗 (相當於 1/2 成人份)";
+  return "約 1 碗 (相當於 2/3 成人份)";
+}
+
+function getAgeSafetyHint(ageInMonths?: number, language: "zh" | "en" = "zh"): string {
+  if (!ageInMonths && ageInMonths !== 0) {
+    return language === "en"
+      ? "Recipes must be toddler-safe (soft textures, no choking hazards, no honey or whole nuts for under 12 months)."
+      : "食譜需適合幼兒，口感柔軟、避免噎到；12 個月前不使用蜂蜜或整顆堅果。";
+  }
+  if (ageInMonths < 12) {
+    return language === "en"
+      ? "Baby is under 12 months: avoid honey, whole nuts, popcorn, and hard/raw veggies; texture should be very soft/puree."
+      : "寶寶未滿 12 個月：避免蜂蜜、整顆堅果、爆米花、生硬蔬果，口感需軟爛/泥狀。";
+  }
+  if (ageInMonths < 24) {
+    return language === "en"
+      ? "Baby is 12-24 months: soft bite-sized pieces only; avoid whole nuts and very hard foods."
+      : "寶寶 12-24 個月：食材需軟且切小塊，避免整顆堅果與過硬食物。";
+  }
+  return language === "en"
+    ? "Baby over 24 months: still keep bite-sized and kid-friendly seasoning; avoid spicy/very hard items."
+    : "寶寶超過 24 個月：仍保持小塊、低刺激調味，避免過硬或過辣食材。";
+}
+
+function getMockRecipeData(mode: string, userIngredients: string, babyAge?: number): RecipeResponse {
   const baseIngredients = userIngredients ? userIngredients.split(/[、,，]/).map(i => i.trim()).filter(i => i) : ["高麗菜", "紅蘿蔔"];
+  const servingInfo = getServingInfoByAge(babyAge);
   
   // 根據模式生成 3 道不同風格的食譜
   const recipes: Recipe[] = [
@@ -84,7 +115,7 @@ function getMockRecipeData(mode: string, userIngredients: string): RecipeRespons
           vitamin_c: "35mg"
         }
       },
-      serving_info: "約 1 碗 (相當於 1/3 成人份)",
+      serving_info: servingInfo,
       steps: [
         "將所有蔬菜洗淨切絲。",
         "熱鍋下少許油，放入蔬菜快炒。",
@@ -139,7 +170,7 @@ function getMockRecipeData(mode: string, userIngredients: string): RecipeRespons
           vitamin_c: "15mg"
         }
       },
-      serving_info: "約 1 份 (相當於 1/2 成人份)",
+      serving_info: servingInfo,
       steps: [
         "將蔬菜切碎備用。",
         "雞蛋打散，加入蔬菜和起司絲拌勻。",
@@ -189,7 +220,7 @@ function getMockRecipeData(mode: string, userIngredients: string): RecipeRespons
           fat: "8g"
         }
       },
-      serving_info: "約 1 碗 (相當於 1/3 成人份)",
+      serving_info: servingInfo,
       steps: [
         "南瓜去皮切塊，雞胸肉切丁。",
         "白米洗淨，與所有食材一起放入電鍋。",
@@ -226,6 +257,20 @@ function getMockRecipeData(mode: string, userIngredients: string): RecipeRespons
   return { recipes };
 }
 
+// 依月齡過濾不適合的食材（簡易版）
+function filterRecipesByAge(recipes: Recipe[], babyAge?: number): Recipe[] {
+  if (babyAge === undefined || babyAge === null) return recipes;
+  const months = babyAge;
+  const bannedTerms = ["蜂蜜", "honey", "whole nut", "堅果", "whole nuts", "popcorn"];
+  if (months >= 12) return recipes;
+  return recipes.filter((recipe) =>
+    recipe.ingredients.every((ing) => {
+      const lower = ing.name.toLowerCase();
+      return !bannedTerms.some((term) => lower.includes(term.toLowerCase()));
+    })
+  );
+}
+
 // ============================================
 // 驗證函數
 // ============================================
@@ -247,7 +292,7 @@ export async function POST(request: NextRequest) {
   let mode = "strict";
   let ingredients = "";
   let toolValue = "any";
-  let babyAge: string | undefined = undefined;
+  let babyAge: number | undefined = undefined;
   let language: "zh" | "en" = "zh";
   
   try {
@@ -259,7 +304,7 @@ export async function POST(request: NextRequest) {
     ingredients = userIngredients || "";
     mode = userMode || "strict";
     toolValue = tool || "any";
-    babyAge = age;
+    babyAge = typeof age === "number" ? age : undefined;
     language = langFromReq === "en" ? "en" : "zh";
 
     // 驗證必要參數
@@ -291,9 +336,10 @@ export async function POST(request: NextRequest) {
     // ============================================
     if (USE_MOCK_DATA) {
       console.log('✅ 使用模擬資料');
-      const mockDataZh = getMockRecipeData(mode, ingredients);
+      const mockDataZh = getMockRecipeData(mode, ingredients, babyAge);
+      const filteredZh = filterRecipesByAge(mockDataZh.recipes, babyAge);
       const mockDataEn: RecipeResponse = {
-        recipes: mockDataZh.recipes.map((r, idx) => ({
+        recipes: filteredZh.map((r, idx) => ({
           ...r,
           style: idx === 0 ? "Chinese" as any : idx === 1 ? "Western" as any : "Japanese" as any,
           title: `Mock Recipe ${idx + 1}`,
@@ -322,7 +368,7 @@ export async function POST(request: NextRequest) {
           searchKeywords: "toddler recipe demo"
         }))
       };
-      const mockData = language === "en" ? mockDataEn : mockDataZh;
+      const mockData = language === "en" ? mockDataEn : { recipes: filteredZh };
       return NextResponse.json(mockData, { status: 200 });
     }
 
@@ -335,7 +381,7 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       console.warn('⚠️ 警告: OPENAI_API_KEY 未設定，降級使用 Mock 資料');
-      const mockData = getMockRecipeData(mode, ingredients);
+      const mockData = getMockRecipeData(mode, ingredients, babyAge);
       return NextResponse.json(mockData, { status: 200 });
     }
 
@@ -389,12 +435,14 @@ State the ratio in serving_info (e.g., "About 1 bowl (~1/3 adult serving)").`
       : (language === "en"
           ? `Use toddler portions (about 1/3 to 1/2 adult) and state in serving_info (e.g., "About 1 bowl (~1/3 adult serving)").`
           : `請根據一般幼兒份量（約 1/3 到 1/2 成人份）來設計，並在 serving_info 中明確標示（例如：「產出 1 碗 (約 1/3 成人份)」）。`);
+    const safetyHint = getAgeSafetyHint(babyAge, language);
 
     // system prompt
     const systemPrompt = language === "en"
       ? `You are an expert pediatric nutritionist. You MUST output the JSON strictly in English. Even if the user input is in Chinese, translate and generate recipes in English. Use Metric units (g, ml).
 
 Rules:
+- Only recommend recipes that are safe and developmentally appropriate for a baby of ${babyAge ?? "unknown"} months. Reject unsafe items (e.g., honey <12 months, whole nuts). ${safetyHint}
 - Auto-correct ingredient typos.
 - Safe for toddlers; avoid allergens/dangerous items.
 - Simple methods for busy parents.
@@ -434,6 +482,7 @@ Return ONLY JSON.`
       : `你是專業的幼兒營養師，請輸出嚴格符合 JSON 結構的繁體中文結果。
 
 規則：
+- 僅提供符合寶寶月齡（${babyAge ?? "不明"} 個月）的安全食譜，避免不適齡食材（例如 12 個月內禁止蜂蜜、整顆堅果）。${safetyHint}
 - 錯字修正，避免危險食材
 - 簡單安全、營養均衡
 - ${modeInstruction}
@@ -471,12 +520,12 @@ Return ONLY JSON.`
 
     const userPrompt = language === "en"
       ? `Please design 3 toddler-friendly recipes (Chinese, Western, Japanese). User ingredients: ${ingredients}
-${babyAge ? `Baby age: ${babyAge}` : ''}
+${babyAge ? `Baby age (months): ${babyAge}` : 'Baby age: unknown'}
 Output language: English. Follow rules and return JSON only.`
       : `請為我設計 3 道不同風格的幼兒食譜（中式、西式、日式各一道）。
 
 使用者提供的食材：${ingredients}
-${babyAge ? `寶寶年齡：${babyAge}` : ''}
+${babyAge ? `寶寶月齡：${babyAge} 個月` : '寶寶月齡未知（請以安全原則設計）'}
 
 請根據上述規則設計食譜，並以 JSON 格式回傳。`;
 
@@ -534,8 +583,13 @@ ${babyAge ? `寶寶年齡：${babyAge}` : ''}
       }
     }
 
-    console.log('回傳食譜資料:', recipeData);
-    return NextResponse.json(recipeData, { status: 200 });
+    const safeRecipes = filterRecipesByAge(recipeData.recipes, babyAge);
+    if (!safeRecipes.length) {
+      throw new Error("沒有適合該月齡的食譜");
+    }
+
+    console.log('回傳食譜資料:', { ...recipeData, recipes: safeRecipes });
+    return NextResponse.json({ recipes: safeRecipes }, { status: 200 });
 
   } catch (error) {
     // ============================================
@@ -556,8 +610,8 @@ ${babyAge ? `寶寶年齡：${babyAge}` : ''}
       console.warn('⚠️ 發生未知錯誤，使用 Mock 資料備援');
     }
     
-    // 自動降級：回傳 Mock 資料
-    const mockData = getMockRecipeData(mode, ingredients);
-    return NextResponse.json(mockData, { status: 200 });
+    // 自動降級：回傳 Mock 資料（並依月齡過濾）
+    const mockData = filterRecipesByAge(getMockRecipeData(mode, ingredients, babyAge).recipes, babyAge);
+    return NextResponse.json({ recipes: mockData }, { status: 200 });
   }
 }

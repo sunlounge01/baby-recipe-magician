@@ -17,6 +17,7 @@ interface Translations {
     youtube: string;
     google: string;
     regenerate: string;
+    settings?: string;
   };
   labels: {
     serving: string;
@@ -36,6 +37,12 @@ interface Translations {
     input: string;
     manual_name: string;
     manual_save: string;
+  };
+  welcome: {
+    title: string;
+    text: string;
+    skip: string;
+    start: string;
   };
   modal: {
     manual_title: string;
@@ -73,7 +80,7 @@ const translations: Record<Language, Translations> = {
     hero: { title: "幼兒食譜魔法師 ✨", subtitle: "Toddler Recipe Magician" },
     greeting: "Hi, [Name] 今天想吃什麼呢？",
     tabs: { chinese: "中式", western: "西式", japanese: "日式" },
-    buttons: { save: "收藏食譜", cooked: "我煮了這個", youtube: "影片教學", google: "Google 搜尋", regenerate: "🔄 都不喜歡，再換一組" },
+    buttons: { save: "收藏食譜", cooked: "我煮了這個", youtube: "影片教學", google: "Google 搜尋", regenerate: "🔄 都不喜歡，再換一組", settings: "設定" },
     labels: { serving: "份量", adult_menu: "👩‍🍳 同場加映：大人吃什麼？", parallel: "平行料理 (食材沿用)", remix: "美味加工 (口味升級)", consumption: "寶寶吃了多少？", actual_intake: "實際攝取" },
     nutrients: { protein: "蛋白質", calcium: "鈣質", iron: "鐵質", vitamin_c: "維生素C" },
     placeholders: { input: "輸入食材 (如: 雞肉, 南瓜...)", manual_name: "餐點名稱", manual_save: "紀錄" },
@@ -91,9 +98,9 @@ const translations: Record<Language, Translations> = {
       note_optional: "(選填)",
       cancel: "取消",
       save: "儲存",
-      analyzing: "🔍 分析營養中...",
-      save_success: "紀錄已儲存！",
-      save_error: "儲存失敗，可能是 LocalStorage 空間不足",
+      analyzing: "🔍 魔法偵測中...",
+      save_success: "你太棒了！紀錄完成！",
+      save_error: "哎呀，魔法失手，再試一次！",
       name_required: "請輸入菜名"
     },
     meal_types: {
@@ -112,7 +119,7 @@ const translations: Record<Language, Translations> = {
     hero: { title: "Toddler Recipe Magician ✨", subtitle: "Making baby food is as simple as magic" },
     greeting: "Hi, [Name], what would you like to eat today?",
     tabs: { chinese: "Chinese", western: "Western", japanese: "Japanese" },
-    buttons: { save: "Save", cooked: "Cooked", youtube: "Watch Video", google: "Search", regenerate: "🔄 Regenerate" },
+    buttons: { save: "Save", cooked: "Cooked", youtube: "Watch Video", google: "Search", regenerate: "🔄 Regenerate", settings: "Settings" },
     labels: { serving: "Serving", adult_menu: "👩‍🍳 For Adults", parallel: "Parallel Cooking", remix: "Tasty Remix", consumption: "How much did baby eat?", actual_intake: "Intake" },
     nutrients: { protein: "Protein", calcium: "Calcium", iron: "Iron", vitamin_c: "Vit C" },
     placeholders: { input: "Enter ingredients (e.g., Chicken...)", manual_name: "Meal Name", manual_save: "Log Meal" },
@@ -130,9 +137,9 @@ const translations: Record<Language, Translations> = {
       note_optional: "(Optional)",
       cancel: "Cancel",
       save: "Save",
-      analyzing: "🔍 Analyzing nutrition...",
-      save_success: "Record saved!",
-      save_error: "Save failed, LocalStorage may be full",
+      analyzing: "🔍 Magic is checking...",
+      save_success: "You are awesome! Saved!",
+      save_error: "Oops, magic fizzled. Try again!",
       name_required: "Please enter meal name"
     },
     meal_types: {

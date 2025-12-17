@@ -27,7 +27,8 @@ import {
 } from "date-fns";
 import { zhTW } from "date-fns/locale";
 import DayViewModal from "../components/DayViewModal";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { useLanguage } from "../context/LanguageContext";
 
 // 卡片材質背景
 const cardTexture = "data:image/svg+xml,%3Csvg width='200' height='200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='paper'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.04' numOctaves='3'/%3E%3CfeColorMatrix values='0 0 0 0 0.95 0 0 0 0 0.95 0 0 0 0 0.95 0 0 0 0.15 0'/%3E%3C/filter%3E%3Crect width='200' height='200' fill='%23FFFFFF'/%3E%3Crect width='200' height='200' filter='url(%23paper)'/%3E%3C/svg%3E";
@@ -40,6 +41,11 @@ interface NutritionInfo {
     protein: string;
     carbs: string;
     fat: string;
+  };
+  micronutrients?: {
+    calcium: string;
+    iron: string;
+    vitamin_c: string;
   };
 }
 
@@ -60,11 +66,15 @@ type ViewMode = "week" | "month" | "year";
 
 export default function CalendarPage() {
   const router = useRouter();
+  const { language, t } = useLanguage();
+  const tr = (zh: string, en: string) => (language === "en" ? en : zh);
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [eatingLogs, setEatingLogs] = useState<EatingLog[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isDayViewModalOpen, setIsDayViewModalOpen] = useState(false);
+  const [babyAgeMonths, setBabyAgeMonths] = useState<number | null>(null);
+  const [showPercent, setShowPercent] = useState(false);
 
   // 載入 eating_logs
   useEffect(() => {
@@ -76,6 +86,21 @@ export default function CalendarPage() {
           setEatingLogs(logs);
         } catch (error) {
           console.error('解析 eating_logs 失敗:', error);
+        }
+      }
+      const storedProfile = localStorage.getItem("userProfile");
+      if (storedProfile) {
+        try {
+          const profile = JSON.parse(storedProfile);
+          if (profile?.birthday) {
+            const birth = new Date(profile.birthday);
+            const today = new Date();
+            let months = (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth());
+            if (today.getDate() < birth.getDate()) months -= 1;
+            setBabyAgeMonths(Math.max(months, 0));
+          }
+        } catch (e) {
+          console.error('解析 userProfile 失敗:', e);
         }
       }
     }
@@ -166,7 +191,38 @@ export default function CalendarPage() {
     );
   };
 
-  // 計算營養統計
+  const parseToMg = (value?: string) => {
+    if (!value) return 0;
+    const lower = value.toLowerCase();
+    const num = parseFloat(lower);
+    if (isNaN(num)) return 0;
+    if (lower.includes("mg")) return num;
+    if (lower.includes("g")) return num * 1000;
+    return num;
+  };
+
+  const getRDI = (months: number | null) => {
+    if (months !== null && months < 12) {
+      return {
+        protein: 11000, // mg
+        carbs: 95000,
+        fat: 31000,
+        calcium: 270,
+        iron: 11,
+        vitamin_c: 50,
+      };
+    }
+    return {
+      protein: 13000,
+      carbs: 130000,
+      fat: 30000,
+      calcium: 700,
+      iron: 7,
+      vitamin_c: 15,
+    };
+  };
+
+  // 計算營養統計（累積 mg）
   const nutritionStats = useMemo(() => {
     let dateRange: { start: Date; end: Date };
     
@@ -192,22 +248,46 @@ export default function CalendarPage() {
       return logDate >= dateRange.start && logDate <= dateRange.end;
     });
 
-    const tagCount: Record<string, number> = {};
-    rangeLogs.forEach(log => {
-      if (log.nutrition?.tags) {
-        log.nutrition.tags.forEach(tag => {
-          tagCount[tag] = (tagCount[tag] || 0) + 1;
-        });
+    const totals = {
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      calcium: 0,
+      iron: 0,
+      vitamin_c: 0,
+    };
+
+    rangeLogs.forEach((log) => {
+      const n = log.nutrition;
+      if (n?.macros) {
+        totals.protein += parseToMg(n.macros.protein);
+        totals.carbs += parseToMg(n.macros.carbs);
+        totals.fat += parseToMg(n.macros.fat);
+      }
+      if (n?.micronutrients) {
+        totals.calcium += parseToMg(n.micronutrients.calcium);
+        totals.iron += parseToMg(n.micronutrients.iron);
+        totals.vitamin_c += parseToMg(n.micronutrients.vitamin_c);
       }
     });
 
-    const sortedTags = Object.entries(tagCount)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 5)
-      .map(([name, count]) => ({ name, count }));
+    const rdi = getRDI(babyAgeMonths);
+    const data = [
+      { key: "protein", name: t.nutrients.protein, mg: totals.protein },
+      { key: "carbs", name: tr("碳水化合物", "Carbs"), mg: totals.carbs },
+      { key: "fat", name: tr("脂肪", "Fat"), mg: totals.fat },
+      { key: "calcium", name: t.nutrients.calcium, mg: totals.calcium },
+      { key: "iron", name: t.nutrients.iron, mg: totals.iron },
+      { key: "vitamin_c", name: t.nutrients.vitamin_c, mg: totals.vitamin_c },
+    ].map((item) => ({
+      ...item,
+      percent: rdi[item.key as keyof typeof rdi]
+        ? (item.mg / (rdi[item.key as keyof typeof rdi] as number)) * 100
+        : 0,
+    }));
 
-    return sortedTags;
-  }, [eatingLogs, viewMode, currentDate]);
+    return data;
+  }, [eatingLogs, viewMode, currentDate, babyAgeMonths, language, t.nutrients]);
 
   // 切換日期
   const goToPrevious = () => {
@@ -604,32 +684,56 @@ export default function CalendarPage() {
               backgroundSize: 'cover',
             }}
           >
-            <h3 className="text-xl font-bold text-ink-dark mb-4 tracking-wide">
-              📊 營養統計
-            </h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={nutritionStats}>
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <h3 className="text-xl font-bold text-ink-dark tracking-wide">
+                📊 {tr("營養統計", "Nutrition Stats")}
+              </h3>
+              <button
+                onClick={() => setShowPercent((v) => !v)}
+                className="px-4 py-2 rounded-xl border-2 border-dashed border-moss-green/40 text-ink-dark hover:border-deep-teal transition-all text-sm font-semibold"
+              >
+                {showPercent ? tr("顯示 mg", "Show mg") : tr("切換 %", "Show %")}
+              </button>
+            </div>
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart
+                data={nutritionStats}
+                layout="vertical"
+                margin={{ left: 10, right: 10, top: 10, bottom: 10 }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="#A5A58D" opacity={0.3} />
-                <XAxis 
-                  dataKey="name" 
+                <XAxis
+                  type="number"
                   stroke="#6B705C"
+                  tickFormatter={(v: number) =>
+                    showPercent ? `${Math.round(v)}%` : `${Math.round(v)} mg`
+                  }
                   style={{ fontSize: '12px' }}
                 />
-                <YAxis 
+                <YAxis
+                  type="category"
+                  dataKey="name"
                   stroke="#6B705C"
+                  width={showPercent ? 70 : 90}
                   style={{ fontSize: '12px' }}
                 />
-                <Tooltip 
-                  contentStyle={{ 
+                <Tooltip
+                  formatter={(value) => {
+                    const num = Array.isArray(value) ? Number(value[0]) : Number(value ?? 0);
+                    return showPercent ? `${num.toFixed(1)}%` : `${Math.round(num)} mg`;
+                  }}
+                  labelFormatter={(label: string) => label}
+                  contentStyle={{
                     backgroundColor: '#F9F6E8',
                     border: '2px dashed #6B705C',
                     borderRadius: '12px'
                   }}
                 />
-                <Bar 
-                  dataKey="count" 
+                <Bar
+                  dataKey={showPercent ? "percent" : "mg"}
                   fill="#3E5C64"
-                  radius={[8, 8, 0, 0]}
+                  radius={[0, 8, 8, 0]}
+                  barSize={24}
                 />
               </BarChart>
             </ResponsiveContainer>

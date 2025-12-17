@@ -7,6 +7,7 @@ import CollectionModal from "./components/CollectionModal";
 import CompleteMealModal from "./components/CompleteMealModal";
 import HeroSection from "./components/HeroSection";
 import LanguageSwitcher from "./components/LanguageSwitcher";
+import WelcomeModal from "./components/WelcomeModal";
 import { useLanguage } from "./context/LanguageContext";
 
 type Mode = "strict" | "creative" | "shopping";
@@ -32,6 +33,39 @@ export default function Home() {
   const [inputMethod, setInputMethod] = useState<"keyboard" | "mic" | "camera">("keyboard");
   const [isCompleteMealModalOpen, setIsCompleteMealModalOpen] = useState(false);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+
+  const uiText = language === "en"
+    ? {
+        diary: "Diary",
+        cookingNow: "Cooking...",
+        cookMagic: "Generate Recipe",
+        ingredients: "Ingredients",
+        steps: "Steps",
+        nutrition: "Nutrition",
+        nutritionTags: "Nutrition Tags",
+        tip: "Dietitian Note",
+        micronutrients: "Micronutrients",
+        adults: t.labels.adult_menu || "👩‍🍳 For Adults",
+        stepsLabel: "Steps:",
+        imageBtn: "Images",
+        defaultSearch: "toddler recipe",
+      }
+    : {
+        diary: "飲食日記",
+        cookingNow: "魔法進行中...",
+        cookMagic: "變出魔法食譜",
+        ingredients: "食材清單",
+        steps: "料理步驟",
+        nutrition: "營養資訊",
+        nutritionTags: "營養標籤",
+        tip: "營養師小語",
+        micronutrients: "微量營養素",
+        adults: t.labels.adult_menu || "👩‍🍳 同場加映：大人吃什麼？",
+        stepsLabel: "料理步驟：",
+        imageBtn: "圖片",
+        defaultSearch: "幼兒食譜",
+      };
 
   // 計算年齡
   const calculateAge = (birthday: string): string => {
@@ -72,6 +106,14 @@ export default function Home() {
       }
     }
   }, [router]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const visited = localStorage.getItem('hasVisited');
+    if (visited !== 'true') {
+      setShowWelcome(true);
+    }
+  }, []);
 
   const modes = [
     {
@@ -361,9 +403,9 @@ export default function Home() {
               </div>
               <div className="min-w-0">
                 <h1 className="text-base sm:text-xl font-bold text-ink-dark tracking-wide font-sans truncate">
-                  幼兒食譜魔法師
+                  {t.hero.title}
                 </h1>
-                <p className="text-xs text-ink-light font-sans hidden sm:block">Toddler Recipe Magic</p>
+                <p className="text-xs text-ink-light font-sans hidden sm:block">{t.hero.subtitle}</p>
               </div>
             </div>
 
@@ -379,7 +421,7 @@ export default function Home() {
               >
                 <Calendar className="w-4 h-4 text-ink-dark" />
                 <span className="text-xs sm:text-sm font-medium text-ink-dark tracking-wide hidden sm:inline">
-                  飲食日記
+                  {language === "en" ? "Diary" : "飲食日記"}
                 </span>
               </button>
               <LanguageSwitcher />
@@ -552,12 +594,12 @@ export default function Home() {
           {isLoading ? (
             <>
               <Loader2 className="w-6 h-6 animate-spin" />
-              <span>魔法進行中...</span>
+              <span>{uiText.cookingNow}</span>
             </>
           ) : (
             <>
               <span className="text-2xl">✨</span>
-              <span>變出魔法食譜</span>
+              <span>{uiText.cookMagic}</span>
             </>
           )}
         </button>
@@ -892,6 +934,11 @@ export default function Home() {
         )}
         </div>
       </main>
+
+      <WelcomeModal
+        isOpen={showWelcome}
+        onClose={() => setShowWelcome(false)}
+      />
 
       {/* Footer */}
       <footer className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 mt-12 border-t-2 border-dashed border-stone-400/50">

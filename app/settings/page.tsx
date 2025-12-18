@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Save, ArrowLeft, Plus, Users } from "lucide-react";
+import { Save, ArrowLeft, Plus, Users, Trash2 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { supabase } from "../../lib/supabaseClient";
 
@@ -28,6 +28,7 @@ export default function SettingsPage() {
   const [newBabyMonths, setNewBabyMonths] = useState<number | null>(null);
   const [isSavingBaby, setIsSavingBaby] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [deletingBabyId, setDeletingBabyId] = useState<number | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -152,6 +153,59 @@ export default function SettingsPage() {
     }
   };
 
+  const handleDeleteBaby = async (babyId: number, babyName?: string) => {
+    if (!supabase) {
+      alert(tr("Supabase 未正確設定，暫時無法刪除寶寶", "Supabase is not configured, cannot delete baby right now."));
+      return;
+    }
+
+    const confirmed = window.confirm(
+      tr(
+        `確定要刪除「${babyName || "這位寶寶"}」嗎？\n刪除後無法從雲端復原。`,
+        `Are you sure you want to delete "${babyName || "this baby"}"? This cannot be undone.`
+      )
+    );
+    if (!confirmed) return;
+
+    setDeletingBabyId(babyId);
+    try {
+      const { error } = await supabase.from("babies").delete().eq("id", babyId);
+      if (error) {
+        console.error("刪除寶寶失敗", error);
+        alert(tr("刪除失敗，請稍後再試", "Delete failed, please try again."));
+        return;
+      }
+
+      const nextBabies = babies.filter((b) => b.id !== babyId);
+      setBabies(nextBabies);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("babies", JSON.stringify(nextBabies));
+        const storedActive = localStorage.getItem("activeBabyIds");
+        let activeIds: number[] = [];
+        if (storedActive) {
+          try {
+            activeIds = JSON.parse(storedActive);
+          } catch {
+            activeIds = [];
+          }
+        }
+        const filteredActive = activeIds.filter((id) => id !== babyId);
+        if (filteredActive.length === 0 && nextBabies.length > 0) {
+          localStorage.setItem("activeBabyIds", JSON.stringify([nextBabies[0].id]));
+        } else {
+          localStorage.setItem("activeBabyIds", JSON.stringify(filteredActive));
+        }
+      }
+
+      alert(tr("已幫你優雅地刪除這位寶寶 🌈", "Baby has been removed from your account."));
+    } catch (error) {
+      console.error("刪除寶寶例外錯誤", error);
+      alert(tr("刪除過程發生錯誤，請稍後再試", "An error occurred while deleting, please try again."));
+    } finally {
+      setDeletingBabyId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-paper-light">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -220,9 +274,25 @@ export default function SettingsPage() {
                 <div className="text-ink-light">{tr("尚未新增寶寶", "No babies yet")}</div>
               )}
               {babies.map((b) => (
-                <div key={b.id} className="flex items-center justify-between p-3 rounded-xl border-2 border-dashed border-moss-green/30">
-                  <div className="font-semibold text-ink-dark">{b.name}</div>
-                  <div className="text-sm text-ink-light">{b.months_old ?? "-"} mo</div>
+                <div
+                  key={b.id}
+                  className="flex items-center justify-between p-3 rounded-xl border-2 border-dashed border-moss-green/30 gap-3"
+                >
+                  <div className="flex flex-col">
+                    <span className="font-semibold text-ink-dark">{b.name}</span>
+                    <span className="text-xs text-ink-light">
+                      {b.months_old !== null && b.months_old !== undefined ? `${b.months_old} mo` : "-"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteBaby(b.id, b.name)}
+                    disabled={deletingBabyId === b.id}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border-2 text-xs font-semibold bg-red-50 text-red-600 border-red-200 hover:bg-red-100 hover:border-red-400 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>{deletingBabyId === b.id ? tr("刪除中...", "Deleting...") : tr("刪除", "Delete")}</span>
+                  </button>
                 </div>
               ))}
             </div>

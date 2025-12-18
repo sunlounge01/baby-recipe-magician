@@ -335,9 +335,9 @@ export default function CompleteMealModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div
-        className="w-[95%] sm:w-full max-w-md rounded-[2rem] border-2 border-dashed border-moss-green/30 shadow-lg shadow-moss-green/20 p-4 sm:p-6 bg-white relative my-8 mx-auto"
+        className="w-[95%] sm:w-full max-w-md max-h-[90vh] rounded-[2rem] border-2 border-dashed border-moss-green/30 shadow-lg shadow-moss-green/20 p-4 sm:p-6 bg-white relative my-8 mx-auto overflow-y-auto"
         style={{
           backgroundImage: `url("${cardTexture}")`,
           backgroundSize: 'cover',

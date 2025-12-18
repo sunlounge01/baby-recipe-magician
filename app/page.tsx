@@ -544,7 +544,7 @@ export default function Home() {
             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
               <button
                 onClick={() => router.push('/settings')}
-                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl border-2 border-dashed border-moss-green/30 hover:border-deep-teal transition-all"
+                className="inline-flex items-center justify-center gap-1 sm:gap-2 h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl border-2 border-dashed border-moss-green/30 hover:border-deep-teal transition-all"
                 style={{
                   backgroundImage: `url("${cardTexture}")`,
                   backgroundSize: 'cover',
@@ -557,7 +557,7 @@ export default function Home() {
               </button>
               <button
                 onClick={() => router.push('/calendar')}
-                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl border-2 border-dashed border-moss-green/30 hover:border-deep-teal transition-all"
+                className="inline-flex items-center justify-center gap-1 sm:gap-2 h-10 sm:h-11 px-3 sm:px-4 rounded-xl sm:rounded-2xl border-2 border-dashed border-moss-green/30 hover:border-deep-teal transition-all"
                 style={{
                   backgroundImage: `url("${cardTexture}")`,
                   backgroundSize: 'cover',

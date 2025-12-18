@@ -99,7 +99,7 @@ const translations: Record<Language, Translations> = {
       cancel: "取消",
       save: "儲存",
       analyzing: "🔍 魔法偵測中...",
-      save_success: "你太棒了！紀錄完成！",
+      save_success: "你太棒了！日曆現在變得超級順手，魔法師也覺得很舒服！",
       save_error: "哎呀，魔法失手，再試一次！",
       name_required: "請輸入菜名"
     },

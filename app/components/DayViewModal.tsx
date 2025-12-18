@@ -30,6 +30,7 @@ interface EatingLog {
   mealType: "breakfast" | "lunch" | "snack" | "dinner";
   rating: number;
   image: string | null;
+  image_url?: string | null;
   note: string;
   nutrition: NutritionInfo;
   createdAt: string;
@@ -114,9 +115,9 @@ export default function DayViewModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 overflow-y-auto">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
         <div
-          className="w-[95%] sm:w-full max-w-2xl rounded-[2rem] border-2 border-dashed border-moss-green/30 shadow-lg shadow-moss-green/20 p-4 sm:p-6 bg-white relative my-8 mx-auto"
+          className="w-[95%] sm:w-full max-w-2xl max-h-[90vh] rounded-[2rem] border-2 border-dashed border-moss-green/30 shadow-lg shadow-moss-green/20 p-4 sm:p-6 bg-white relative my-8 mx-auto overflow-y-auto"
           style={{
             backgroundImage: `url("${cardTexture}")`,
             backgroundSize: 'cover',
@@ -213,10 +214,10 @@ export default function DayViewModal({
                           </div>
                         )}
 
-                        {/* 照片縮圖 */}
-                        {log.image ? (
+                        {/* 照片縮圖（支援 image 或 image_url） */}
+                        {log.image || log.image_url ? (
                           <img
-                            src={log.image}
+                            src={log.image || log.image_url || ""}
                             alt={log.title}
                             className="w-20 h-20 object-cover rounded-xl border-2 border-dashed border-moss-green/30/50 mt-2"
                           />

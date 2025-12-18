@@ -58,6 +58,7 @@ interface EatingLog {
   rating?: number;
   nutrition: NutritionInfo;
   image: string | null;
+  image_url?: string | null; // 來自資料庫的圖片網址（Supabase Storage）
   note: string;
   createdAt: string;
 }
@@ -88,20 +89,55 @@ export default function CalendarPage() {
           console.error('解析 eating_logs 失敗:', error);
         }
       }
-      const storedProfile = localStorage.getItem("userProfile");
-      if (storedProfile) {
+
+      // 依照目前選中的寶寶月齡動態估算 RDI，若無多寶寶資料則退回 userProfile.birthday
+      let resolvedMonths: number | null = null;
+      const storedBabies = localStorage.getItem("babies");
+      const storedActiveIds = localStorage.getItem("activeBabyIds");
+      if (storedBabies) {
         try {
-          const profile = JSON.parse(storedProfile);
-          if (profile?.birthday) {
-            const birth = new Date(profile.birthday);
-            const today = new Date();
-            let months = (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth());
-            if (today.getDate() < birth.getDate()) months -= 1;
-            setBabyAgeMonths(Math.max(months, 0));
+          const babies = JSON.parse(storedBabies) as Array<{ id: number; months_old: number | null }>;
+          let activeIds: number[] = [];
+          if (storedActiveIds) {
+            try {
+              activeIds = JSON.parse(storedActiveIds);
+            } catch {
+              activeIds = [];
+            }
+          }
+          const targetBabies =
+            activeIds.length > 0 ? babies.filter((b) => activeIds.includes(b.id)) : babies;
+          const monthsList = targetBabies
+            .map((b) => (typeof b.months_old === "number" ? b.months_old : null))
+            .filter((v): v is number => v !== null);
+          if (monthsList.length > 0) {
+            resolvedMonths = Math.min(...monthsList);
           }
         } catch (e) {
-          console.error('解析 userProfile 失敗:', e);
+          console.error("解析 babies 失敗:", e);
         }
+      }
+
+      if (resolvedMonths === null) {
+        const storedProfile = localStorage.getItem("userProfile");
+        if (storedProfile) {
+          try {
+            const profile = JSON.parse(storedProfile);
+            if (profile?.birthday) {
+              const birth = new Date(profile.birthday);
+              const today = new Date();
+              let months = (today.getFullYear() - birth.getFullYear()) * 12 + (today.getMonth() - birth.getMonth());
+              if (today.getDate() < birth.getDate()) months -= 1;
+              resolvedMonths = Math.max(months, 0);
+            }
+          } catch (e) {
+            console.error("解析 userProfile 失敗:", e);
+          }
+        }
+      }
+
+      if (resolvedMonths !== null) {
+        setBabyAgeMonths(resolvedMonths);
       }
     }
   }, []);
@@ -136,7 +172,8 @@ export default function CalendarPage() {
   const renderLogCell = (log: EatingLog, cellCount: number) => {
     const mealConfig = getMealConfig(log);
     const displayTitle = log.title || log.recipeTitle || "未命名";
-    const hasImage = !!log.image;
+    const imageSrc = log.image || log.image_url || null;
+    const hasImage = !!imageSrc;
     const rating = log.rating || 0;
     
     const textSizeClass = cellCount >= 3 
@@ -156,7 +193,7 @@ export default function CalendarPage() {
         key={log.id}
         className="relative w-full h-full rounded-lg overflow-hidden"
         style={{
-          backgroundImage: hasImage ? `url(${log.image})` : undefined,
+          backgroundImage: hasImage ? `url(${imageSrc})` : undefined,
           backgroundColor: hasImage ? undefined : mealConfig.color,
           backgroundSize: hasImage ? 'cover' : undefined,
           backgroundPosition: hasImage ? 'center' : undefined,
@@ -459,16 +496,18 @@ export default function CalendarPage() {
                 {logs.map((log) => {
                   const mealConfig = getMealConfig(log);
                   const displayTitle = log.title || log.recipeTitle || "未命名";
+                  const imageSrc = log.image || log.image_url || null;
+                  const hasImage = !!imageSrc;
                   return (
                     <div
                       key={log.id}
                       onClick={() => handleDateClick(date)}
                       className="p-3 rounded-lg border-2 border-dashed border-moss-green/30 cursor-pointer hover:border-deep-teal transition-all"
                       style={{
-                        backgroundImage: log.image ? `url(${log.image})` : undefined,
-                        backgroundColor: log.image ? undefined : mealConfig.color + '40',
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center',
+                        backgroundImage: hasImage ? `url(${imageSrc})` : undefined,
+                        backgroundColor: hasImage ? undefined : mealConfig.color + "40",
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
                       }}
                     >
                       <div className="text-sm font-bold text-ink-dark line-clamp-2 mb-1">
@@ -476,9 +515,14 @@ export default function CalendarPage() {
                       </div>
                       {log.mealType && (
                         <div className="text-xs text-ink-light">
-                          {mealTypeConfig[log.mealType]?.icon} {['breakfast', 'lunch', 'snack', 'dinner'].find(m => m === log.mealType) === 'breakfast' ? '早餐' : 
-                           ['breakfast', 'lunch', 'snack', 'dinner'].find(m => m === log.mealType) === 'lunch' ? '午餐' :
-                           ['breakfast', 'lunch', 'snack', 'dinner'].find(m => m === log.mealType) === 'snack' ? '下午茶' : '晚餐'}
+                          {mealTypeConfig[log.mealType]?.icon}{" "}
+                          {["breakfast", "lunch", "snack", "dinner"].find((m) => m === log.mealType) === "breakfast"
+                            ? "早餐"
+                            : ["breakfast", "lunch", "snack", "dinner"].find((m) => m === log.mealType) === "lunch"
+                            ? "午餐"
+                            : ["breakfast", "lunch", "snack", "dinner"].find((m) => m === log.mealType) === "snack"
+                            ? "下午茶"
+                            : "晚餐"}
                         </div>
                       )}
                     </div>
@@ -579,7 +623,7 @@ export default function CalendarPage() {
           <div className="flex items-center justify-between">
             <h1 className="text-2xl sm:text-3xl font-bold text-ink-dark tracking-wide flex items-center gap-2">
               <CalendarIcon className="w-6 h-6 sm:w-8 sm:h-8" />
-              飲食日記 📅
+              飲食日記
             </h1>
             <button
               onClick={() => router.push('/')}
@@ -683,11 +727,16 @@ export default function CalendarPage() {
               backgroundImage: `url("${cardTexture}")`,
               backgroundSize: 'cover',
             }}
-          >
+            >
             <div className="flex items-center justify-between gap-3 mb-4">
-              <h3 className="text-xl font-bold text-ink-dark tracking-wide">
-                📊 {tr("營養統計", "Nutrition Stats")}
-              </h3>
+              <div>
+                <h3 className="text-xl font-bold text-ink-dark tracking-wide">
+                  📊 {tr("營養統計", "Nutrition Stats")}
+                </h3>
+                <p className="text-xs text-ink-light mt-1">
+                  {tr("（% 為相對於該月齡每日建議攝取量之比例）", "(% is relative to daily recommended intake for current age)")}
+                </p>
+              </div>
               <button
                 onClick={() => setShowPercent((v) => !v)}
                 className="px-4 py-2 rounded-xl border-2 border-dashed border-moss-green/40 text-ink-dark hover:border-deep-teal transition-all text-sm font-semibold"

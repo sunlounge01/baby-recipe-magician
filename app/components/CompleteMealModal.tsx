@@ -337,27 +337,27 @@ export default function CompleteMealModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div
-        className="w-[95%] sm:w-full max-w-md max-h-[90vh] rounded-[2rem] border-2 border-dashed border-moss-green/30 shadow-lg shadow-moss-green/20 p-4 sm:p-6 bg-white relative my-8 mx-auto overflow-y-auto"
+        className="w-[95%] sm:w-full max-w-md max-h-[85vh] rounded-[2rem] border-2 border-dashed border-moss-green/30 shadow-lg shadow-moss-green/20 p-4 sm:p-6 bg-white relative my-8 mx-auto overflow-y-auto"
         style={{
           backgroundImage: `url("${cardTexture}")`,
           backgroundSize: 'cover',
         }}
       >
-        {/* 關閉按鈕 */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-full hover:bg-stone-100 transition-colors"
-        >
-          <X className="w-5 h-5 text-ink-dark" />
-        </button>
-
-        {/* 標題 */}
-        <h2 className="text-2xl font-bold text-ink-dark mb-2 tracking-wide font-sans">
-          {isManual ? t.modal.manual_title : t.modal.auto_title}
-        </h2>
+        {/* 頂部 sticky 標題與關閉按鈕 */}
+        <div className="sticky top-0 z-10 -mx-4 -mt-4 px-4 pt-4 pb-3 sm:-mx-6 sm:px-6 bg-white/95 backdrop-blur-sm flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-ink-dark tracking-wide font-sans">
+            {isManual ? t.modal.manual_title : t.modal.auto_title}
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-full hover:bg-stone-100 transition-colors"
+          >
+            <X className="w-5 h-5 text-ink-dark" />
+          </button>
+        </div>
 
         {/* 菜名輸入（手動模式）或顯示（自動模式） */}
-        <div className="mb-4">
+        <div className="mt-3 mb-4">
           {isManual ? (
             <div>
               <label className="block text-base font-semibold text-ink-dark mb-2 tracking-wide">

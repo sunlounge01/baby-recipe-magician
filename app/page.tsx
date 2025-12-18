@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Globe, Keyboard, Mic, Camera, ChefHat, Loader2, CheckCircle2, CheckCircle, Youtube, Search, Calendar, Heart, Clock, Settings as SettingsIcon } from "lucide-react";
+import { Keyboard, Mic, Camera, ChefHat, Loader2, CheckCircle, Youtube, Search, Calendar, Heart, Clock, Settings as SettingsIcon } from "lucide-react";
 import CollectionModal from "./components/CollectionModal";
 import CompleteMealModal from "./components/CompleteMealModal";
 import HeroSection from "./components/HeroSection";

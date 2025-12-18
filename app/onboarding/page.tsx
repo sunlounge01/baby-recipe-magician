@@ -5,8 +5,6 @@ import { useRouter } from "next/navigation";
 import { ChefHat, ArrowRight, Check } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 
-console.log('當前連線的 Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
-
 interface FormData {
   email: string;
   nickname: string;
@@ -53,11 +51,6 @@ export default function OnboardingPage() {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
-
-  // 連線網址測試：載入即提示
-  useEffect(() => {
-    alert('連線網址測試：' + (process.env.NEXT_PUBLIC_SUPABASE_URL || '找不到網址'));
-  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -117,20 +110,14 @@ export default function OnboardingPage() {
       .upsert({ email }, { onConflict: "email" })
       .select("id")
       .single();
-    console.log("Supabase Status (users upsert):", status);
-    console.log("Supabase Data (users upsert):", data);
     if (error) {
       console.error("Supabase Error (users upsert):", error);
-      alert(`發送狀態：${status}，錯誤：${error.message || error}`);
       throw error;
     }
-    alert(`發送狀態：${status}，請檢查瀏覽器 Console 看完整數據。`);
     return data?.id as string;
   };
 
   const handleComplete = async () => {
-    alert('按鈕已點擊，準備傳送到 Supabase');
-    console.log('準備提交資料到 Supabase...');
     if (!formData.email || !formData.nickname || !formData.birthday) {
       alert("請填寫 Email、寶寶暱稱與生日");
       return;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Keyboard, Mic, Camera, ChefHat, Loader2, CheckCircle, Youtube, Search, Heart, Clock, RefreshCw } from "lucide-react";
 import CollectionModal from "../components/CollectionModal";
@@ -48,7 +48,8 @@ interface RecipeItem {
   searchKeywords: string;
 }
 
-export default function RecipesPage() {
+// 子組件：包含 useSearchParams 的邏輯
+function RecipeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { language, t } = useLanguage();
@@ -483,3 +484,31 @@ export default function RecipesPage() {
   );
 }
 
+// Loading Fallback 組件
+function RecipeLoadingFallback() {
+  const paperTexture = "data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0'/%3E%3C/filter%3E%3Crect width='100' height='100' fill='%23FFFBF0'/%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.3'/%3E%3C/svg%3E";
+  
+  return (
+    <div 
+      className="min-h-screen bg-repeat bg-cover flex items-center justify-center"
+      style={{
+        backgroundImage: `url("${paperTexture}")`,
+        backgroundSize: '200px 200px',
+      }}
+    >
+      <div className="text-center">
+        <Loader2 className="w-12 h-12 text-deep-teal animate-spin mx-auto mb-4" />
+        <p className="text-lg text-ink-dark">載入中...</p>
+      </div>
+    </div>
+  );
+}
+
+// 主頁面組件
+export default function RecipesPage() {
+  return (
+    <Suspense fallback={<RecipeLoadingFallback />}>
+      <RecipeContent />
+    </Suspense>
+  );
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
 const SUPPORTED_LANGUAGES = ["zh", "en"] as const;
 export type Language = (typeof SUPPORTED_LANGUAGES)[number];

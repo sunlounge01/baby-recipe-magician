@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChefHat, ArrowRight, Check } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+import { useLanguage } from "../context/LanguageContext";
 
 interface FormData {
   email: string;
@@ -14,23 +15,187 @@ interface FormData {
   cookingTools: string[];
 }
 
-const allergiesOptions = [
-  "雞蛋", "牛奶", "堅果", "花生", "海鮮", "小麥", "大豆", "無"
-];
+// 雙語內容
+const onboardingContent = {
+  zh: {
+    welcome: {
+      title: "歡迎來到\n幼兒食譜魔法師",
+      subtitle: "讓我們為您的寶寶\n量身打造專屬食譜",
+      createProfile: "建立寶寶檔案",
+      guestMode: "以訪客試用",
+    },
+    steps: {
+      step1: {
+        title: "下一餐煮什麼？",
+        body: "不刻意規劃，輸入冰箱食材，一鍵變出寶寶營養餐！",
+      },
+      step2: {
+        title: "營養夠均衡嗎？",
+        body: "自動分析每一餐的營養素，幫你把關寶寶的健康攝取。",
+      },
+      step3: {
+        title: "寶寶叫什麼名字？",
+        button: "魔法開始",
+      },
+    },
+    profile: {
+      title: "建立寶寶檔案",
+      subtitle: "讓我們認識您的寶寶",
+      email: "Email",
+      emailPlaceholder: "you@example.com",
+      emailNote: "我們重視您的隱私，您的 Email 僅用於同步寶寶資料與發送營養建議。",
+      nickname: "寶寶暱稱",
+      nicknamePlaceholder: "例如：小寶、妹妹",
+      birthday: "生日",
+      next: "下一步",
+      requiredFields: "請先填寫 Email、寶寶暱稱與生日",
+    },
+    diet: {
+      title: "飲食禁忌",
+      subtitle: "讓我們知道寶寶的飲食限制",
+      allergies: "過敏原",
+      dietPreference: "飲食偏好",
+      next: "下一步",
+    },
+    tools: {
+      title: "廚房工具",
+      subtitle: "選擇您常用的烹飪方式",
+      complete: "完成設定，開始魔法！✨",
+      requiredTools: "請至少選擇一項廚房工具",
+    },
+    allergies: {
+      egg: "雞蛋",
+      milk: "牛奶",
+      nuts: "堅果",
+      peanut: "花生",
+      seafood: "海鮮",
+      wheat: "小麥",
+      soy: "大豆",
+      none: "無",
+    },
+    dietOptions: {
+      omnivore: "葷食",
+      vegetarian: "蛋奶素",
+      vegan: "全素",
+    },
+    toolsOptions: {
+      "rice-cooker": "電鍋 (蒸)",
+      pan: "平底鍋 (煎)",
+      pot: "燉鍋 (煮)",
+      oven: "烤箱 (烤)",
+      blender: "果汁機 (打泥)",
+    },
+    success: "你太棒了！魔法師已經記住這一切了！",
+    error: "請填寫 Email、寶寶暱稱與生日",
+    errorDetail: "錯誤詳情：",
+  },
+  en: {
+    welcome: {
+      title: "Welcome to\nToddler Recipe Magician",
+      subtitle: "Let's create personalized recipes\nfor your baby",
+      createProfile: "Create Baby Profile",
+      guestMode: "Try as Guest",
+    },
+    steps: {
+      step1: {
+        title: "What to Cook Next?",
+        body: "Simply enter your fridge ingredients, and we'll magically create a nutritious baby meal!",
+      },
+      step2: {
+        title: "Balanced Nutrition Intake?",
+        body: "Automatically analyze nutrients to ensure a balanced diet for your baby.",
+      },
+      step3: {
+        title: "What is your baby's name?",
+        button: "Get the Magic Working",
+      },
+    },
+    profile: {
+      title: "Create Baby Profile",
+      subtitle: "Let's get to know your baby",
+      email: "Email",
+      emailPlaceholder: "you@example.com",
+      emailNote: "We value your privacy. Your email is only used to sync baby data and send nutrition tips.",
+      nickname: "Baby's Nickname",
+      nicknamePlaceholder: "e.g., Little One, Baby",
+      birthday: "Birthday",
+      next: "Next",
+      requiredFields: "Please fill in Email, Baby's nickname, and Birthday",
+    },
+    diet: {
+      title: "Dietary Restrictions",
+      subtitle: "Let us know your baby's dietary limitations",
+      allergies: "Allergies",
+      dietPreference: "Diet Preference",
+      next: "Next",
+    },
+    tools: {
+      title: "Kitchen Tools",
+      subtitle: "Select your commonly used cooking methods",
+      complete: "Complete Setup, Start Magic! ✨",
+      requiredTools: "Please select at least one kitchen tool",
+    },
+    allergies: {
+      egg: "Egg",
+      milk: "Milk",
+      nuts: "Nuts",
+      peanut: "Peanut",
+      seafood: "Seafood",
+      wheat: "Wheat",
+      soy: "Soy",
+      none: "None",
+    },
+    dietOptions: {
+      omnivore: "Omnivore",
+      vegetarian: "Vegetarian",
+      vegan: "Vegan",
+    },
+    toolsOptions: {
+      "rice-cooker": "Rice Cooker (Steam)",
+      pan: "Pan (Fry)",
+      pot: "Pot (Boil)",
+      oven: "Oven (Bake)",
+      blender: "Blender (Puree)",
+    },
+    success: "You're awesome! The magician has remembered everything!",
+    error: "Please fill in Email, Baby's nickname, and Birthday",
+    errorDetail: "Error details:",
+  },
+};
 
-const dietOptions = [
-  { value: "omnivore", label: "葷食", emoji: "🍖" },
-  { value: "vegetarian", label: "蛋奶素", emoji: "🥚" },
-  { value: "vegan", label: "全素", emoji: "🥬" },
-];
+const getAllergiesOptions = (lang: "zh" | "en") => {
+  const content = onboardingContent[lang].allergies;
+  return [
+    content.egg,
+    content.milk,
+    content.nuts,
+    content.peanut,
+    content.seafood,
+    content.wheat,
+    content.soy,
+    content.none,
+  ];
+};
 
-const cookingToolsOptions = [
-  { value: "rice-cooker", label: "電鍋 (蒸)", emoji: "🍚" },
-  { value: "pan", label: "平底鍋 (煎)", emoji: "🍳" },
-  { value: "pot", label: "燉鍋 (煮)", emoji: "🍲" },
-  { value: "oven", label: "烤箱 (烤)", emoji: "🔥" },
-  { value: "blender", label: "果汁機 (打泥)", emoji: "🥤" },
-];
+const getDietOptions = (lang: "zh" | "en") => {
+  const content = onboardingContent[lang];
+  return [
+    { value: "omnivore", label: content.dietOptions.omnivore, emoji: "🍖" },
+    { value: "vegetarian", label: content.dietOptions.vegetarian, emoji: "🥚" },
+    { value: "vegan", label: content.dietOptions.vegan, emoji: "🥬" },
+  ];
+};
+
+const getCookingToolsOptions = (lang: "zh" | "en") => {
+  const content = onboardingContent[lang].toolsOptions;
+  return [
+    { value: "rice-cooker", label: content["rice-cooker"], emoji: "🍚" },
+    { value: "pan", label: content.pan, emoji: "🍳" },
+    { value: "pot", label: content.pot, emoji: "🍲" },
+    { value: "oven", label: content.oven, emoji: "🔥" },
+    { value: "blender", label: content.blender, emoji: "🥤" },
+  ];
+};
 
 // 紙張材質背景
 const paperTexture = "data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0'/%3E%3C/filter%3E%3Crect width='100' height='100' fill='%23FFFBF0'/%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.3'/%3E%3C/svg%3E";
@@ -40,6 +205,8 @@ const cardTexture = "data:image/svg+xml,%3Csvg width='200' height='200' xmlns='h
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { language } = useLanguage();
+  const content = onboardingContent[language];
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<FormData>({
     email: "",
@@ -51,6 +218,10 @@ export default function OnboardingPage() {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  
+  const allergiesOptions = getAllergiesOptions(language);
+  const dietOptions = getDietOptions(language);
+  const cookingToolsOptions = getCookingToolsOptions(language);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -68,7 +239,7 @@ export default function OnboardingPage() {
 
   const handleNext = () => {
     if (currentStep === 2 && (!formData.email || !formData.nickname || !formData.birthday)) {
-      alert("請先填寫 Email、寶寶暱稱與生日");
+      alert(content.profile.requiredFields);
       return;
     }
     if (currentStep < 4) {
@@ -77,12 +248,13 @@ export default function OnboardingPage() {
   };
 
   const handleAllergyToggle = (allergy: string) => {
-    if (allergy === "無") {
+    const noneLabel = content.allergies.none;
+    if (allergy === noneLabel) {
       setFormData({ ...formData, allergies: [] });
     } else {
       const newAllergies = formData.allergies.includes(allergy)
         ? formData.allergies.filter(a => a !== allergy)
-        : [...formData.allergies.filter(a => a !== "無"), allergy];
+        : [...formData.allergies.filter(a => a !== noneLabel), allergy];
       setFormData({ ...formData, allergies: newAllergies });
     }
   };
@@ -119,7 +291,7 @@ export default function OnboardingPage() {
 
   const handleComplete = async () => {
     if (!formData.email || !formData.nickname || !formData.birthday) {
-      alert("請填寫 Email、寶寶暱稱與生日");
+      alert(content.error);
       return;
     }
     setIsSaving(true);
@@ -173,11 +345,11 @@ export default function OnboardingPage() {
         })
       );
 
-      alert("你太棒了！魔法師已經記住這一切了！");
+      alert(content.success);
       router.push('/');
     } catch (error) {
       console.error("Onboarding 儲存失敗:", error);
-      alert('錯誤詳情：' + JSON.stringify(error));
+      alert(content.errorDetail + JSON.stringify(error));
     } finally {
       setIsSaving(false);
     }
@@ -190,12 +362,27 @@ export default function OnboardingPage() {
         <div className="p-6 bg-[#7A9471] rounded-3xl mb-6 inline-block">
           <ChefHat className="w-16 h-16 text-white" />
         </div>
-        <h1 className="text-4xl font-bold text-[#5C4B41] mb-4 tracking-wide font-sans">
-          歡迎來到<br />幼兒食譜魔法師
+        <h1 className="text-4xl font-bold text-[#5C4B41] mb-4 tracking-wide font-sans whitespace-pre-line">
+          {content.welcome.title}
         </h1>
-        <p className="text-lg text-[#5C4B41]/70 tracking-wide">
-          讓我們為您的寶寶<br />量身打造專屬食譜
+        <p className="text-lg text-[#5C4B41]/70 tracking-wide whitespace-pre-line">
+          {content.welcome.subtitle}
         </p>
+      </div>
+
+      {/* 三個步驟介紹 */}
+      <div className="w-full max-w-sm space-y-6 mb-8">
+        <div className="p-4 rounded-2xl border-2 border-dashed border-moss-green/30 bg-white/50">
+          <h3 className="text-xl font-bold text-[#5C4B41] mb-2">{content.steps.step1.title}</h3>
+          <p className="text-sm text-[#5C4B41]/70">{content.steps.step1.body}</p>
+        </div>
+        <div className="p-4 rounded-2xl border-2 border-dashed border-moss-green/30 bg-white/50">
+          <h3 className="text-xl font-bold text-[#5C4B41] mb-2">{content.steps.step2.title}</h3>
+          <p className="text-sm text-[#5C4B41]/70">{content.steps.step2.body}</p>
+        </div>
+        <div className="p-4 rounded-2xl border-2 border-dashed border-moss-green/30 bg-white/50">
+          <h3 className="text-xl font-bold text-[#5C4B41] mb-2">{content.steps.step3.title}</h3>
+        </div>
       </div>
 
       <div className="w-full max-w-sm space-y-4">
@@ -203,7 +390,7 @@ export default function OnboardingPage() {
           onClick={handleNext}
           className="w-full py-4 bg-[#7A9471] text-white rounded-2xl font-bold text-lg border-2 border-[#5A6B4F] hover:scale-105 active:scale-100 transition-transform tracking-wide shadow-lg shadow-stone-300/50 flex items-center justify-center gap-2"
         >
-          <span>建立寶寶檔案</span>
+          <span>{content.welcome.createProfile}</span>
           <ArrowRight className="w-5 h-5" />
         </button>
         <button
@@ -217,7 +404,7 @@ export default function OnboardingPage() {
             backgroundSize: 'cover',
           }}
         >
-          以訪客試用
+          {content.welcome.guestMode}
         </button>
       </div>
     </div>
@@ -231,21 +418,21 @@ export default function OnboardingPage() {
           <div className="h-2 bg-[#7A9471] rounded-full" style={{ width: '25%' }} />
         </div>
         <h2 className="text-3xl font-bold text-[#5C4B41] mb-2 tracking-wide font-sans">
-          建立寶寶檔案
+          {content.profile.title}
         </h2>
-        <p className="text-[#5C4B41]/70">讓我們認識您的寶寶</p>
+        <p className="text-[#5C4B41]/70">{content.profile.subtitle}</p>
       </div>
 
       <div className="flex-1 space-y-6">
         <div>
           <label className="block text-lg font-semibold text-[#5C4B41] mb-3 tracking-wide">
-            Email
+            {content.profile.email}
           </label>
           <input
             type="email"
             value={formData.email}
             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            placeholder="you@example.com"
+            placeholder={content.profile.emailPlaceholder}
             className="w-full px-5 py-4 rounded-2xl border-2 border-dashed border-stone-400/50 focus:border-[#7A9471] outline-none text-[#5C4B41] transition-all tracking-wide font-sans"
             style={{
               backgroundImage: `url("${cardTexture}")`,
@@ -253,18 +440,18 @@ export default function OnboardingPage() {
             }}
           />
           <p className="mt-2 text-sm text-[#5C4B41]/70">
-            我們重視您的隱私，您的 Email 僅用於同步寶寶資料與發送營養建議。
+            {content.profile.emailNote}
           </p>
         </div>
         <div>
           <label className="block text-lg font-semibold text-[#5C4B41] mb-3 tracking-wide">
-            寶寶暱稱
+            {content.profile.nickname}
           </label>
           <input
             type="text"
             value={formData.nickname}
             onChange={(e) => setFormData({ ...formData, nickname: e.target.value })}
-            placeholder="例如：小寶、妹妹"
+            placeholder={content.profile.nicknamePlaceholder}
             className="w-full px-5 py-4 rounded-2xl border-2 border-dashed border-stone-400/50 focus:border-[#7A9471] outline-none text-[#5C4B41] transition-all tracking-wide font-sans"
             style={{
               backgroundImage: `url("${cardTexture}")`,
@@ -275,7 +462,7 @@ export default function OnboardingPage() {
 
         <div>
           <label className="block text-lg font-semibold text-[#5C4B41] mb-3 tracking-wide">
-            生日
+            {content.profile.birthday}
           </label>
           <input
             type="date"
@@ -295,7 +482,7 @@ export default function OnboardingPage() {
         disabled={!formData.email || !formData.nickname || !formData.birthday}
         className="w-full py-4 bg-[#7A9471] text-white rounded-2xl font-bold text-lg border-2 border-[#5A6B4F] hover:scale-105 active:scale-100 transition-transform disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none tracking-wide shadow-lg shadow-stone-300/50 flex items-center justify-center gap-2 mt-8"
       >
-        <span>下一步</span>
+        <span>{content.profile.next}</span>
         <ArrowRight className="w-5 h-5" />
       </button>
     </div>
@@ -309,15 +496,15 @@ export default function OnboardingPage() {
           <div className="h-2 bg-[#7A9471] rounded-full" style={{ width: '50%' }} />
         </div>
         <h2 className="text-3xl font-bold text-[#5C4B41] mb-2 tracking-wide font-sans">
-          飲食禁忌
+          {content.diet.title}
         </h2>
-        <p className="text-[#5C4B41]/70">讓我們知道寶寶的飲食限制</p>
+        <p className="text-[#5C4B41]/70">{content.diet.subtitle}</p>
       </div>
 
       <div className="flex-1 space-y-8">
         <div>
           <label className="block text-lg font-semibold text-[#5C4B41] mb-4 tracking-wide">
-            過敏原
+            {content.diet.allergies}
           </label>
           <div className="flex flex-wrap gap-3">
             {allergiesOptions.map((allergy) => (
@@ -325,11 +512,11 @@ export default function OnboardingPage() {
                 key={allergy}
                 onClick={() => handleAllergyToggle(allergy)}
                 className={`px-4 py-2 rounded-full text-sm font-semibold border-2 transition-all tracking-wide ${
-                  formData.allergies.includes(allergy) || (allergy === "無" && formData.allergies.length === 0)
+                  formData.allergies.includes(allergy) || (allergy === content.allergies.none && formData.allergies.length === 0)
                     ? "bg-[#7A9471] text-white border-[#5A6B4F]"
                     : "bg-white text-[#5C4B41] border-dashed border-stone-400/50"
                 }`}
-                style={!formData.allergies.includes(allergy) && allergy !== "無" && formData.allergies.length > 0 ? {
+                style={!formData.allergies.includes(allergy) && allergy !== content.allergies.none && formData.allergies.length > 0 ? {
                   backgroundImage: `url("${cardTexture}")`,
                   backgroundSize: 'cover',
                 } : {}}
@@ -342,7 +529,7 @@ export default function OnboardingPage() {
 
         <div>
           <label className="block text-lg font-semibold text-[#5C4B41] mb-4 tracking-wide">
-            飲食偏好
+            {content.diet.dietPreference}
           </label>
           <div className="space-y-3">
             {dietOptions.map((option) => (
@@ -376,7 +563,7 @@ export default function OnboardingPage() {
         onClick={handleNext}
         className="w-full py-4 bg-[#7A9471] text-white rounded-2xl font-bold text-lg border-2 border-[#5A6B4F] hover:scale-105 active:scale-100 transition-transform tracking-wide shadow-lg shadow-stone-300/50 flex items-center justify-center gap-2 mt-8"
       >
-        <span>下一步</span>
+        <span>{content.diet.next}</span>
         <ArrowRight className="w-5 h-5" />
       </button>
     </div>
@@ -390,9 +577,9 @@ export default function OnboardingPage() {
           <div className="h-2 bg-[#7A9471] rounded-full" style={{ width: '75%' }} />
         </div>
         <h2 className="text-3xl font-bold text-[#5C4B41] mb-2 tracking-wide font-sans">
-          廚房工具
+          {content.tools.title}
         </h2>
-        <p className="text-[#5C4B41]/70">選擇您常用的烹飪方式</p>
+        <p className="text-[#5C4B41]/70">{content.tools.subtitle}</p>
       </div>
 
       <div className="flex-1 space-y-3">
@@ -426,7 +613,7 @@ export default function OnboardingPage() {
         disabled={formData.cookingTools.length === 0}
         className="w-full py-4 bg-[#7A9471] text-white rounded-2xl font-bold text-lg border-2 border-[#5A6B4F] hover:scale-105 active:scale-100 transition-transform disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none tracking-wide shadow-lg shadow-stone-300/50 flex items-center justify-center gap-2 mt-8"
       >
-        <span>完成設定，開始魔法！✨</span>
+        <span>{content.tools.complete}</span>
       </button>
     </div>
   );

@@ -164,19 +164,33 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguage] = useState<Language>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("language");
-      if (saved && (SUPPORTED_LANGUAGES as readonly string[]).includes(saved)) {
-        return saved as Language;
-      }
-      // 若存的是舊的 ja/ko，回退成 zh，避免 translations 取不到導致 t 炸掉
-      if (saved) {
-        localStorage.setItem("language", "zh");
-      }
+  // 初始狀態設為 zh，實際偵測在 useEffect 中執行（避免 Hydration Mismatch）
+  const [language, setLanguage] = useState<Language>("zh");
+
+  // 在 Client Side 執行語言偵測，避免 Hydration Mismatch
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const saved = localStorage.getItem("language");
+    if (saved && (SUPPORTED_LANGUAGES as readonly string[]).includes(saved)) {
+      setLanguage(saved as Language);
+      return;
     }
-    return "zh";
-  });
+
+    // 若存的是舊的 ja/ko，回退成 zh
+    if (saved) {
+      localStorage.setItem("language", "zh");
+      setLanguage("zh");
+      return;
+    }
+
+    // 如果 localStorage 沒有紀錄，檢查 navigator.language
+    const browserLang = navigator.language || navigator.languages?.[0] || "en";
+    const detectedLang = browserLang.toLowerCase().startsWith("zh") ? "zh" : "en";
+    
+    setLanguage(detectedLang);
+    localStorage.setItem("language", detectedLang);
+  }, []);
 
   const handleSetLanguage = (lang: Language) => {
     const safeLang = SUPPORTED_LANGUAGES.includes(lang) ? lang : "zh";

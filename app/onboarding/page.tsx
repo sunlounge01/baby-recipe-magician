@@ -238,9 +238,26 @@ export default function OnboardingPage() {
   const progress = (currentStep / 4) * 100;
 
   const handleNext = () => {
-    if (currentStep === 2 && (!formData.email || !formData.nickname || !formData.birthday)) {
-      alert(content.profile.requiredFields);
+    // Step 1: 檢查 Email
+    if (currentStep === 1 && !formData.email) {
+      alert(language === "en" ? "Please enter your email" : "請輸入 Email");
       return;
+    }
+    // Step 2: 檢查生日（不再檢查 Email 和名字）
+    if (currentStep === 2 && !formData.birthday) {
+      alert(language === "en" ? "Please enter baby's birthday" : "請輸入寶寶生日");
+      return;
+    }
+    // Step 2: 檢查年齡是否小於 4 個月
+    if (currentStep === 2 && formData.birthday) {
+      const monthsOld = getMonthsOld(formData.birthday);
+      if (monthsOld !== null && monthsOld < 4) {
+        const warningMsg = language === "en"
+          ? "Your baby is too young. Please continue with more milk feeding!"
+          : "你的孩子還太小了，再多喝點奶吧！";
+        alert(warningMsg);
+        return;
+      }
     }
     if (currentStep < 4) {
       setCurrentStep(currentStep + 1);
@@ -290,8 +307,8 @@ export default function OnboardingPage() {
   };
 
   const handleComplete = async () => {
-    if (!formData.email || !formData.nickname || !formData.birthday) {
-      alert(content.error);
+    if (!formData.email || !formData.birthday) {
+      alert(language === "en" ? "Please enter email and birthday" : "請填寫 Email 與生日");
       return;
     }
     setIsSaving(true);
@@ -306,7 +323,7 @@ export default function OnboardingPage() {
           .from("babies")
           .insert({
             user_id: newUserId,
-            name: formData.nickname,
+            name: `Baby ${Date.now()}`, // 使用時間戳作為預設名字
             months_old: monthsOld,
           })
           .select();
@@ -318,7 +335,7 @@ export default function OnboardingPage() {
           localStorage.setItem("userId", newUserId);
           localStorage.setItem(
             "babies",
-            JSON.stringify([savedBaby || { id: Date.now(), name: formData.nickname, months_old: monthsOld }])
+            JSON.stringify([savedBaby || { id: Date.now(), name: `Baby ${Date.now()}`, months_old: monthsOld }])
           );
           localStorage.setItem("activeBabyIds", JSON.stringify([savedBaby?.id || 0]));
         }
@@ -327,7 +344,7 @@ export default function OnboardingPage() {
         localStorage.setItem("userEmail", formData.email);
         localStorage.setItem(
           "babies",
-          JSON.stringify([{ id: Date.now(), name: formData.nickname, months_old: monthsOld }])
+          JSON.stringify([{ id: Date.now(), name: `Baby ${Date.now()}`, months_old: monthsOld }])
         );
         localStorage.setItem("activeBabyIds", JSON.stringify([0]));
       }
@@ -336,7 +353,6 @@ export default function OnboardingPage() {
       localStorage.setItem(
         "userProfile",
         JSON.stringify({
-          nickname: formData.nickname,
           birthday: formData.birthday,
           allergies: formData.allergies,
           dietPreference: formData.dietPreference,
@@ -355,7 +371,7 @@ export default function OnboardingPage() {
     }
   };
 
-  // Screen 1: 歡迎畫面
+  // Screen 1: WELCOME 畫面 - 要求輸入 Email
   const renderWelcomeScreen = () => (
     <div className="flex flex-col items-center justify-center min-h-screen px-6 text-center">
       <div className="mb-8">
@@ -370,35 +386,49 @@ export default function OnboardingPage() {
         </p>
       </div>
 
-      {/* 三個步驟介紹 */}
+      {/* Email 輸入 */}
       <div className="w-full max-w-sm space-y-6 mb-8">
-        <div className="p-4 rounded-2xl border-2 border-dashed border-moss-green/30 bg-white/50">
-          <h3 className="text-xl font-bold text-[#5C4B41] mb-2">{content.steps.step1.title}</h3>
-          <p className="text-sm text-[#5C4B41]/70">{content.steps.step1.body}</p>
-        </div>
-        <div className="p-4 rounded-2xl border-2 border-dashed border-moss-green/30 bg-white/50">
-          <h3 className="text-xl font-bold text-[#5C4B41] mb-2">{content.steps.step2.title}</h3>
-          <p className="text-sm text-[#5C4B41]/70">{content.steps.step2.body}</p>
-        </div>
-        <div className="p-4 rounded-2xl border-2 border-dashed border-moss-green/30 bg-white/50">
-          <h3 className="text-xl font-bold text-[#5C4B41] mb-2">{content.steps.step3.title}</h3>
+        <div>
+          <label className="block text-lg font-semibold text-[#5C4B41] mb-3 tracking-wide text-left">
+            {content.profile.email}
+          </label>
+          <input
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            placeholder={content.profile.emailPlaceholder}
+            className="w-full px-5 py-4 rounded-2xl border-2 border-stone-400 focus:border-[#7A9471] outline-none text-[#5C4B41] transition-all tracking-wide font-sans"
+            style={{
+              backgroundImage: `url("${cardTexture}")`,
+              backgroundSize: 'cover',
+            }}
+          />
+          <p className="mt-2 text-sm text-[#5C4B41]/70 text-left">
+            {content.profile.emailNote}
+          </p>
         </div>
       </div>
 
       <div className="w-full max-w-sm space-y-4">
         <button
           onClick={handleNext}
-          className="w-full py-4 bg-[#7A9471] text-white rounded-2xl font-bold text-lg border-2 border-[#5A6B4F] hover:scale-105 active:scale-100 transition-transform tracking-wide shadow-lg shadow-stone-300/50 flex items-center justify-center gap-2"
+          disabled={!formData.email}
+          className="w-full py-4 bg-[#7A9471] text-white rounded-2xl font-bold text-lg border-2 border-[#5A6B4F] hover:scale-105 active:scale-100 transition-transform disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none tracking-wide shadow-lg shadow-stone-300/50 flex items-center justify-center gap-2"
         >
           <span>{content.welcome.createProfile}</span>
           <ArrowRight className="w-5 h-5" />
         </button>
         <button
           onClick={() => {
-            localStorage.setItem('userProfile', JSON.stringify({ guest: true }));
-            router.push('/');
+            const skipConfirm = language === "en"
+              ? "If you choose to skip, your baby profile and all information will not be saved after this session. Continue?"
+              : "如果不綁定 Email，本次的寶寶檔案與偏好設定將無法儲存。確定要繼續嗎？";
+            if (confirm(skipConfirm)) {
+              localStorage.setItem('userProfile', JSON.stringify({ guest: true }));
+              router.push('/');
+            }
           }}
-          className="w-full py-4 bg-white text-[#5C4B41] rounded-2xl font-semibold text-lg border-2 border-dashed border-stone-400/50 hover:border-[#7A9471] transition-all tracking-wide"
+          className="w-full py-4 bg-white text-[#5C4B41] rounded-2xl font-semibold text-lg border-2 border-stone-400 hover:border-[#7A9471] transition-all tracking-wide"
           style={{
             backgroundImage: `url("${cardTexture}")`,
             backgroundSize: 'cover',
@@ -410,7 +440,7 @@ export default function OnboardingPage() {
     </div>
   );
 
-  // Screen 2: 寶寶個資
+  // Screen 2: 寶寶個資（移除 Email 和名字欄位）
   const renderProfileScreen = () => (
     <div className="flex flex-col min-h-screen px-6 py-12">
       <div className="mb-8">
@@ -426,49 +456,13 @@ export default function OnboardingPage() {
       <div className="flex-1 space-y-6">
         <div>
           <label className="block text-lg font-semibold text-[#5C4B41] mb-3 tracking-wide">
-            {content.profile.email}
-          </label>
-          <input
-            type="email"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            placeholder={content.profile.emailPlaceholder}
-            className="w-full px-5 py-4 rounded-2xl border-2 border-dashed border-stone-400/50 focus:border-[#7A9471] outline-none text-[#5C4B41] transition-all tracking-wide font-sans"
-            style={{
-              backgroundImage: `url("${cardTexture}")`,
-              backgroundSize: 'cover',
-            }}
-          />
-          <p className="mt-2 text-sm text-[#5C4B41]/70">
-            {content.profile.emailNote}
-          </p>
-        </div>
-        <div>
-          <label className="block text-lg font-semibold text-[#5C4B41] mb-3 tracking-wide">
-            {content.profile.nickname}
-          </label>
-          <input
-            type="text"
-            value={formData.nickname}
-            onChange={(e) => setFormData({ ...formData, nickname: e.target.value })}
-            placeholder={content.profile.nicknamePlaceholder}
-            className="w-full px-5 py-4 rounded-2xl border-2 border-dashed border-stone-400/50 focus:border-[#7A9471] outline-none text-[#5C4B41] transition-all tracking-wide font-sans"
-            style={{
-              backgroundImage: `url("${cardTexture}")`,
-              backgroundSize: 'cover',
-            }}
-          />
-        </div>
-
-        <div>
-          <label className="block text-lg font-semibold text-[#5C4B41] mb-3 tracking-wide">
             {content.profile.birthday}
           </label>
           <input
             type="date"
             value={formData.birthday}
             onChange={(e) => setFormData({ ...formData, birthday: e.target.value })}
-            className="w-full px-5 py-4 rounded-2xl border-2 border-dashed border-stone-400/50 focus:border-[#7A9471] outline-none text-[#5C4B41] transition-all tracking-wide font-sans"
+            className="w-full px-5 py-4 rounded-2xl border-2 border-stone-400 focus:border-[#7A9471] outline-none text-[#5C4B41] transition-all tracking-wide font-sans"
             style={{
               backgroundImage: `url("${cardTexture}")`,
               backgroundSize: 'cover',
@@ -479,7 +473,7 @@ export default function OnboardingPage() {
 
       <button
         onClick={handleNext}
-        disabled={!formData.email || !formData.nickname || !formData.birthday}
+        disabled={!formData.birthday}
         className="w-full py-4 bg-[#7A9471] text-white rounded-2xl font-bold text-lg border-2 border-[#5A6B4F] hover:scale-105 active:scale-100 transition-transform disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none tracking-wide shadow-lg shadow-stone-300/50 flex items-center justify-center gap-2 mt-8"
       >
         <span>{content.profile.next}</span>
@@ -514,7 +508,7 @@ export default function OnboardingPage() {
                 className={`px-4 py-2 rounded-full text-sm font-semibold border-2 transition-all tracking-wide ${
                   formData.allergies.includes(allergy) || (allergy === content.allergies.none && formData.allergies.length === 0)
                     ? "bg-[#7A9471] text-white border-[#5A6B4F]"
-                    : "bg-white text-[#5C4B41] border-dashed border-stone-400/50"
+                    : "bg-white text-[#5C4B41] border-stone-400"
                 }`}
                 style={!formData.allergies.includes(allergy) && allergy !== content.allergies.none && formData.allergies.length > 0 ? {
                   backgroundImage: `url("${cardTexture}")`,
@@ -539,7 +533,7 @@ export default function OnboardingPage() {
                 className={`w-full p-4 rounded-2xl border-2 text-left transition-all ${
                   formData.dietPreference === option.value
                     ? "bg-[#7A9471] text-white border-[#5A6B4F]"
-                    : "bg-white text-[#5C4B41] border-dashed border-stone-400/50"
+                    : "bg-white text-[#5C4B41] border-stone-400"
                 }`}
                 style={formData.dietPreference !== option.value ? {
                   backgroundImage: `url("${cardTexture}")`,
@@ -559,13 +553,25 @@ export default function OnboardingPage() {
         </div>
       </div>
 
-      <button
-        onClick={handleNext}
-        className="w-full py-4 bg-[#7A9471] text-white rounded-2xl font-bold text-lg border-2 border-[#5A6B4F] hover:scale-105 active:scale-100 transition-transform tracking-wide shadow-lg shadow-stone-300/50 flex items-center justify-center gap-2 mt-8"
-      >
-        <span>{content.diet.next}</span>
-        <ArrowRight className="w-5 h-5" />
-      </button>
+      <div className="flex gap-3 mt-8">
+        <button
+          onClick={handleNext}
+          className="flex-1 py-4 bg-white text-[#5C4B41] rounded-2xl font-semibold text-lg border-2 border-stone-400 hover:border-[#7A9471] transition-all tracking-wide"
+          style={{
+            backgroundImage: `url("${cardTexture}")`,
+            backgroundSize: 'cover',
+          }}
+        >
+          {language === "en" ? "Skip" : "跳過"}
+        </button>
+        <button
+          onClick={handleNext}
+          className="flex-1 py-4 bg-[#7A9471] text-white rounded-2xl font-bold text-lg border-2 border-[#5A6B4F] hover:scale-105 active:scale-100 transition-transform tracking-wide shadow-lg shadow-stone-300/50 flex items-center justify-center gap-2"
+        >
+          <span>{content.diet.next}</span>
+          <ArrowRight className="w-5 h-5" />
+        </button>
+      </div>
     </div>
   );
 
@@ -590,7 +596,7 @@ export default function OnboardingPage() {
             className={`w-full p-4 rounded-2xl border-2 text-left transition-all ${
               formData.cookingTools.includes(tool.value)
                 ? "bg-[#7A9471] text-white border-[#5A6B4F]"
-                : "bg-white text-[#5C4B41] border-dashed border-stone-400/50"
+                : "bg-white text-[#5C4B41] border-stone-400"
             }`}
             style={!formData.cookingTools.includes(tool.value) ? {
               backgroundImage: `url("${cardTexture}")`,
@@ -608,13 +614,25 @@ export default function OnboardingPage() {
         ))}
       </div>
 
-      <button
-        onClick={handleComplete}
-        disabled={formData.cookingTools.length === 0}
-        className="w-full py-4 bg-[#7A9471] text-white rounded-2xl font-bold text-lg border-2 border-[#5A6B4F] hover:scale-105 active:scale-100 transition-transform disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none tracking-wide shadow-lg shadow-stone-300/50 flex items-center justify-center gap-2 mt-8"
-      >
-        <span>{content.tools.complete}</span>
-      </button>
+      <div className="flex gap-3 mt-8">
+        <button
+          onClick={handleComplete}
+          className="flex-1 py-4 bg-white text-[#5C4B41] rounded-2xl font-semibold text-lg border-2 border-stone-400 hover:border-[#7A9471] transition-all tracking-wide"
+          style={{
+            backgroundImage: `url("${cardTexture}")`,
+            backgroundSize: 'cover',
+          }}
+        >
+          {language === "en" ? "Skip" : "跳過"}
+        </button>
+        <button
+          onClick={handleComplete}
+          disabled={formData.cookingTools.length === 0}
+          className="flex-1 py-4 bg-[#7A9471] text-white rounded-2xl font-bold text-lg border-2 border-[#5A6B4F] hover:scale-105 active:scale-100 transition-transform disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none tracking-wide shadow-lg shadow-stone-300/50 flex items-center justify-center gap-2"
+        >
+          <span>{content.tools.complete}</span>
+        </button>
+      </div>
     </div>
   );
 

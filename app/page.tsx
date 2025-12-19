@@ -8,6 +8,7 @@ import CompleteMealModal from "./components/CompleteMealModal";
 import HeroSection from "./components/HeroSection";
 import LanguageSwitcher from "./components/LanguageSwitcher";
 import WelcomeModal from "./components/WelcomeModal";
+import LoadingScreen from "./components/LoadingScreen";
 import { useLanguage } from "./context/LanguageContext";
 import { supabase } from "../lib/supabaseClient";
 
@@ -337,6 +338,9 @@ export default function Home() {
     console.log('開始呼叫 API...', { ingredients: inputText, mode: selectedMode, tool: selectedTool });
     setIsLoading(true);
     setShowResult(false);
+    
+    // 使用非 streaming 模式（因為 JSON 格式需要完整解析）
+    // 但我們會顯示優化的 Loading 畫面
 
     try {
       // 呼叫 API 生成食譜
@@ -390,26 +394,22 @@ export default function Home() {
 
       // 檢查是否為新格式（recipes 陣列）
       if (data.recipes && Array.isArray(data.recipes) && data.recipes.length > 0) {
-        // 新格式：多道食譜
+        // 新格式：多道食譜 - 跳轉到新頁面
         console.log('收到新格式資料（多道食譜）:', data.recipes.length, '道');
-        setRecipesData(data);
-        setSelectedRecipeIndex(0); // 預設選第一道
         
-        // 轉換為舊格式以保持相容性（使用第一道食譜）
-        const firstRecipe = data.recipes[0];
-        const ingredientsArray = Array.isArray(firstRecipe.ingredients) 
-          ? firstRecipe.ingredients.map((ing: any) => formatIngredientEntry(ing))
-          : [];
+        // 儲存資料到 localStorage
+        localStorage.setItem("lastRecipesData", JSON.stringify(data));
+        localStorage.setItem("lastRecipeInput", inputText);
+        localStorage.setItem("lastRecipeMode", selectedMode);
+        localStorage.setItem("lastRecipeTool", selectedTool);
+        if (activeBabyMonths !== undefined) {
+          localStorage.setItem("lastRecipeAge", activeBabyMonths.toString());
+        }
         
-        setRecipeResult({
-          name: firstRecipe.title,
-          age: firstRecipe.serving_info || uiText.ageFallback,
-          time: firstRecipe.time || tr("20 分鐘", "20 mins"),
-          nutrition: firstRecipe.nutrition,
-          ingredients: ingredientsArray,
-          steps: firstRecipe.steps || [],
-          searchKeywords: firstRecipe.searchKeywords || firstRecipe.title || "",
-        });
+        // 跳轉到食譜結果頁面
+        setIsLoading(false);
+        router.push("/recipes");
+        return;
       } else if (data.error) {
         // 處理錯誤情況
         console.log('API 回傳錯誤:', data.error);
@@ -465,6 +465,7 @@ export default function Home() {
       }
 
       setIsLoading(false);
+      // 如果沒有跳轉，顯示錯誤結果
       setShowResult(true);
     } catch (error) {
       console.error(tr("生成食譜失敗:", "Generate recipe failed:"), error);
@@ -789,6 +790,9 @@ export default function Home() {
             </>
           )}
         </button>
+
+        {/* 優化的 Loading 畫面 */}
+        {isLoading && <LoadingScreen language={language} />}
 
         {/* 結果顯示區 - 手寫筆記風格 */}
         {showResult && recipeResult && (

@@ -44,6 +44,7 @@ interface AdultsMenu {
 interface Recipe {
   style: "中式" | "西式" | "日式";
   title: string;
+  ageLabel?: string; // 適用年齡標籤，如 "6m+", "12m+", "18m+"
   ingredients: IngredientItem[];
   nutrition: NutritionInfo;
   serving_info: string;
@@ -437,12 +438,43 @@ State the ratio in serving_info (e.g., "About 1 bowl (~1/3 adult serving)").`
           : `請根據一般幼兒份量（約 1/3 到 1/2 成人份）來設計，並在 serving_info 中明確標示（例如：「產出 1 碗 (約 1/3 成人份)」）。`);
     const safetyHint = getAgeSafetyHint(babyAge, language);
 
+    // 根據年齡決定要生成的食譜年齡階段
+    const getAgeBands = (age?: number): string[] => {
+      if (!age || age < 6) return ["6m+"];
+      if (age < 8) return ["6m+"];
+      if (age < 10) return ["6m+", "8m+"];
+      if (age < 12) return ["6m+", "8m+", "10m+"];
+      if (age < 18) return ["6m+", "12m+"];
+      return ["6m+", "12m+", "18m+"];
+    };
+
+    const ageBands = getAgeBands(babyAge);
+    const ageBandInstruction = language === "en"
+      ? `IMPORTANT: Generate recipes for multiple age bands: ${ageBands.join(", ")}. Mix recipes from different age bands - for example, if baby is 18 months, include recipes suitable for 6m+, 12m+, and 18m+. Each recipe must have an "ageLabel" field (e.g., "6m+", "12m+", "18m+") indicating the minimum age.`
+      : `重要：請生成多個年齡階段的食譜：${ageBands.join("、")}。隨機混合不同年齡階段的食譜 - 例如，如果寶寶 18 個月，要包含適合 6m+、12m+、18m+ 的食譜。每道食譜必須有 "ageLabel" 欄位（例如 "6m+"、"12m+"、"18m+"）標示最低適用年齡。`;
+
+    const ageSpecificRules = language === "en"
+      ? `Age-specific texture and ingredient rules:
+- 6-7 months: Soft finger foods (cooked vegetable strips/blocks, soft fruits like avocado slices, banana slices, tender vegetables). Puree or very soft textures.
+- 8-9 months: Meat, beans, whole grains (minced beef, minced chicken, steamed peas, tofu). Soft, bite-sized pieces.
+- 10-12 months: Full-fat dairy, eggs (Greek yogurt, cooked eggs, cheese). More varied textures, still soft.
+- 12+ months: Can include more complex textures, but still avoid whole nuts, honey (if under 12m), and choking hazards.
+Each recipe must match its ageLabel exactly.`
+      : `年齡階段食材與質地規則：
+- 6-7 個月：切成條狀或塊狀的熟蔬菜、軟水果（如牛油果片、香蕉片、菜心）。泥狀或非常柔軟的質地。
+- 8-9 個月：肉類、豆類、全穀類（如碎牛肉、碎雞肉、蒸豌豆、豆腐）。柔軟、小塊狀。
+- 10-12 個月：全脂奶製品、雞蛋（如希臘優格、熟雞蛋、起司）。更多樣化的質地，仍保持柔軟。
+- 12 個月以上：可以包含更複雜的質地，但仍需避免整顆堅果、蜂蜜（12 個月以下）和噎到風險。
+每道食譜必須完全符合其 ageLabel 的要求。`;
+
     // system prompt
     const systemPrompt = language === "en"
       ? `You are an expert pediatric nutritionist. You MUST output the JSON strictly in English. Even if the user input is in Chinese, translate and generate recipes in English. Use Metric units (g, ml).
 
 Rules:
 - Only recommend recipes that are safe and developmentally appropriate for a baby of ${babyAge ?? "unknown"} months. Reject unsafe items (e.g., honey <12 months, whole nuts). ${safetyHint}
+- ${ageBandInstruction}
+- ${ageSpecificRules}
 - Auto-correct ingredient typos.
 - Safe for toddlers; avoid allergens/dangerous items.
 - Simple methods for busy parents.
@@ -459,6 +491,7 @@ Return exactly JSON of this shape:
     {
       "style": "Chinese/Western/Japanese",
       "title": "Baby dish title",
+      "ageLabel": "6m+",
       "ingredients": [{"name": "Chicken", "amount": "50g"}],
       "nutrition": {
         "calories": 200,
@@ -483,6 +516,8 @@ Return ONLY JSON.`
 
 規則：
 - 僅提供符合寶寶月齡（${babyAge ?? "不明"} 個月）的安全食譜，避免不適齡食材（例如 12 個月內禁止蜂蜜、整顆堅果）。${safetyHint}
+- ${ageBandInstruction}
+- ${ageSpecificRules}
 - 錯字修正，避免危險食材
 - 簡單安全、營養均衡
 - ${modeInstruction}
@@ -497,6 +532,7 @@ Return ONLY JSON.`
     {
       "style": "中式/西式/日式",
       "title": "寶寶食譜名稱",
+      "ageLabel": "6m+",
       "ingredients": [{"name": "雞肉", "amount": "50g"}],
       "nutrition": {
         "calories": 200,
@@ -519,19 +555,76 @@ Return ONLY JSON.`
 請只回傳 JSON。`;
 
     const userPrompt = language === "en"
-      ? `Please design 3 toddler-friendly recipes (Chinese, Western, Japanese). User ingredients: ${ingredients}
-${babyAge ? `Baby age (months): ${babyAge}` : 'Baby age: unknown'}
+      ? `Please design 3-5 toddler-friendly recipes (mix Chinese, Western, Japanese styles). User ingredients: ${ingredients}
+${babyAge ? `Baby age (months): ${babyAge}. Generate recipes for age bands: ${ageBands.join(", ")}. Mix recipes from different age bands.` : 'Baby age: unknown. Generate recipes for 6m+, 12m+ age bands.'}
+Each recipe must have an "ageLabel" field (e.g., "6m+", "12m+", "18m+") indicating minimum age.
 Output language: English. Follow rules and return JSON only.`
-      : `請為我設計 3 道不同風格的幼兒食譜（中式、西式、日式各一道）。
+      : `請為我設計 3-5 道不同風格的幼兒食譜（混合中式、西式、日式風格）。
 
 使用者提供的食材：${ingredients}
-${babyAge ? `寶寶月齡：${babyAge} 個月` : '寶寶月齡未知（請以安全原則設計）'}
+${babyAge ? `寶寶月齡：${babyAge} 個月。請生成年齡階段：${ageBands.join("、")} 的食譜。隨機混合不同年齡階段的食譜。` : '寶寶月齡未知。請生成 6m+、12m+ 年齡階段的食譜。'}
+每道食譜必須有 "ageLabel" 欄位（例如 "6m+"、"12m+"、"18m+"）標示最低適用年齡。
 
 請根據上述規則設計食譜，並以 JSON 格式回傳。`;
 
     console.log('開始呼叫 OpenAI API...');
 
-    // 呼叫 OpenAI API
+    // 檢查是否要求 streaming
+    const streamParam = request.headers.get("accept")?.includes("text/event-stream");
+    const useStream = streamParam || request.nextUrl.searchParams.get("stream") === "true";
+
+    if (useStream) {
+      // Streaming 模式
+      const stream = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt,
+          },
+          {
+            role: "user",
+            content: userPrompt,
+          },
+        ],
+        temperature: 0.6, // 降低 temperature 以加快速度
+        response_format: { type: "json_object" },
+        stream: true,
+      });
+
+      // 創建 ReadableStream
+      const encoder = new TextEncoder();
+      const readableStream = new ReadableStream({
+        async start(controller) {
+          let fullContent = "";
+          try {
+            for await (const chunk of stream) {
+              const content = chunk.choices[0]?.delta?.content || "";
+              if (content) {
+                fullContent += content;
+                // 發送增量內容
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content, type: "chunk" })}\n\n`));
+              }
+            }
+            // 發送完整內容
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: fullContent, type: "complete" })}\n\n`));
+            controller.close();
+          } catch (error) {
+            controller.error(error);
+          }
+        },
+      });
+
+      return new Response(readableStream, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+        },
+      });
+    }
+
+    // 非 Streaming 模式（原有邏輯）
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -544,7 +637,7 @@ ${babyAge ? `寶寶月齡：${babyAge} 個月` : '寶寶月齡未知（請以安
           content: userPrompt,
         },
       ],
-      temperature: 0.7,
+      temperature: 0.6, // 降低 temperature 以加快速度
       response_format: { type: "json_object" },
     });
 
@@ -576,10 +669,26 @@ ${babyAge ? `寶寶月齡：${babyAge} 個月` : '寶寶月齡未知（請以安
       throw new Error("OpenAI 回傳的資料格式不完整：缺少 recipes 陣列");
     }
 
-    // 驗證每道食譜的必要欄位
+    // 驗證每道食譜的必要欄位，並確保有 ageLabel
     for (const recipe of recipeData.recipes) {
       if (!recipe.title || !recipe.ingredients || !recipe.steps || !recipe.adults_menu) {
         throw new Error("食譜資料格式不完整");
+      }
+      // 如果沒有 ageLabel，根據寶寶年齡推斷
+      if (!recipe.ageLabel && babyAge) {
+        if (babyAge < 8) {
+          recipe.ageLabel = "6m+";
+        } else if (babyAge < 10) {
+          recipe.ageLabel = "8m+";
+        } else if (babyAge < 12) {
+          recipe.ageLabel = "10m+";
+        } else if (babyAge < 18) {
+          recipe.ageLabel = "12m+";
+        } else {
+          recipe.ageLabel = "18m+";
+        }
+      } else if (!recipe.ageLabel) {
+        recipe.ageLabel = "6m+"; // 預設
       }
     }
 
@@ -588,8 +697,11 @@ ${babyAge ? `寶寶月齡：${babyAge} 個月` : '寶寶月齡未知（請以安
       throw new Error("沒有適合該月齡的食譜");
     }
 
-    console.log('回傳食譜資料:', { ...recipeData, recipes: safeRecipes });
-    return NextResponse.json({ recipes: safeRecipes }, { status: 200 });
+    // 隨機打亂食譜順序，實現隨機混合效果
+    const shuffledRecipes = [...safeRecipes].sort(() => Math.random() - 0.5);
+
+    console.log('回傳食譜資料:', { ...recipeData, recipes: shuffledRecipes });
+    return NextResponse.json({ recipes: shuffledRecipes }, { status: 200 });
 
   } catch (error) {
     // ============================================
